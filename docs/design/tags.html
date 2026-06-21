@@ -1,0 +1,1326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RepoLens · 层级标签工作台</title>
+  <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/repolens-app-icon-32.png" />
+  <link rel="apple-touch-icon" href="assets/brand/repolens-app-icon-256.png" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f5f7;
+      --surface-warm: var(--surface);
+      --fg: #0e1318;
+      --fg-2: #3c4043;
+      --muted: #5f6368;
+      --meta: #9aa0a6;
+      --border: #e1e3e6;
+      --border-soft: var(--border);
+      --accent: #7d2ae8;
+      --accent-on: #ffffff;
+      --accent-hover: #6815d4;
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #00b894;
+      --warn: #ffb020;
+      --danger: #ff5757;
+      --font-display: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-body: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --text-xs: 11px;
+      --text-sm: 12px;
+      --text-base: 14px;
+      --text-lg: 16px;
+      --text-xl: 18px;
+      --text-2xl: 24px;
+      --text-3xl: 36px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.15;
+      --tracking-display: -0.02em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 96px;
+      --section-y-tablet: 64px;
+      --section-y-phone: 48px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --focus-ring: 0 0 0 3px rgba(125, 42, 232, 0.16);
+      --motion-fast: 180ms;
+      --motion-base: 280ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --container-max: 1320px;
+      --container-gutter-desktop: 32px;
+      --container-gutter-tablet: 24px;
+      --container-gutter-phone: 16px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--surface);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; }
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 272px minmax(0, 1fr);
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+      padding: var(--space-6);
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-weight: 800;
+    }
+    .mark {
+      width: 36px;
+      height: 36px;
+      display: block;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 22px color-mix(in oklab, var(--accent), transparent 72%);
+    }
+    .nav-list { display: grid; gap: var(--space-2); }
+    .nav-item {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-sm);
+      color: var(--fg-2);
+      font-weight: 700;
+    }
+    .nav-item[aria-current="page"] {
+      color: var(--accent);
+      background: color-mix(in oklab, var(--accent), transparent 91%);
+    }
+    .nav-ico {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--muted);
+    }
+    .sidebar-note {
+      margin-top: auto;
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      display: grid;
+      gap: var(--space-3);
+    }
+    .sidebar-note h2 { font-size: var(--text-xl); line-height: 1.25; }
+    .sidebar-note p { color: var(--muted); font-size: var(--text-sm); }
+    .workspace {
+      min-width: 0;
+      padding: var(--space-6);
+      display: grid;
+      gap: var(--space-6);
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-4);
+      align-items: center;
+    }
+    .title-block h1 {
+      font-size: clamp(var(--text-2xl), 4vw, var(--text-3xl));
+      line-height: var(--leading-tight);
+      letter-spacing: 0;
+    }
+    .title-block p {
+      margin-top: var(--space-2);
+      color: var(--muted);
+      max-width: 78ch;
+      text-wrap: pretty;
+    }
+    .top-actions {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .btn {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-4);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      font-weight: 700;
+      transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--elev-raised);
+      border-color: color-mix(in oklab, var(--border), var(--fg) 18%);
+    }
+    .btn-primary {
+      color: var(--accent-on);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
+    }
+    .btn-subtle {
+      color: var(--accent);
+      background: color-mix(in oklab, var(--accent), transparent 92%);
+      border-color: color-mix(in oklab, var(--accent), transparent 70%);
+    }
+    .btn[disabled] {
+      cursor: not-allowed;
+      color: var(--meta);
+      background: var(--surface);
+      box-shadow: none;
+      transform: none;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+    .metric-card {
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .metric-card span { color: var(--muted); font-size: var(--text-sm); }
+    .metric-card strong {
+      display: block;
+      margin-top: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xl);
+      line-height: 1;
+    }
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr) minmax(320px, 390px);
+      gap: var(--space-6);
+      align-items: start;
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+      overflow: hidden;
+      min-width: 0;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .panel-head h2 { font-size: var(--text-xl); line-height: 1.25; }
+    .panel-body {
+      padding: var(--space-4);
+      display: grid;
+      gap: var(--space-4);
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .toolbar .filter-row { grid-column: 1 / -1; }
+    .search-box {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      align-items: center;
+      min-height: 46px;
+      padding: 0 var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+    .search-box input {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--fg);
+    }
+    .search-box input::placeholder { color: var(--meta); }
+    .search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+      background: var(--bg);
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .chip {
+      min-height: 34px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg-2);
+      font-weight: 700;
+      font-size: var(--text-sm);
+    }
+    .chip.is-active {
+      color: var(--accent);
+      border-color: color-mix(in oklab, var(--accent), transparent 48%);
+      background: color-mix(in oklab, var(--accent), transparent 91%);
+    }
+    .tag-tree {
+      display: grid;
+      gap: var(--space-2);
+    }
+    .tag-node {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-3);
+      align-items: center;
+      min-height: 46px;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      color: var(--fg);
+      text-align: left;
+      transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+    }
+    .tag-node:hover {
+      transform: translateY(-1px);
+      border-color: color-mix(in oklab, var(--border), var(--fg) 16%);
+    }
+    .tag-node.is-active {
+      border-color: color-mix(in oklab, var(--accent), transparent 35%);
+      background: color-mix(in oklab, var(--accent), transparent 93%);
+    }
+    .tag-node[data-depth="1"] { margin-left: var(--space-5); }
+    .tag-node[data-depth="2"] { margin-left: var(--space-12); }
+    .tag-node strong {
+      display: block;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tag-node small {
+      display: block;
+      margin-top: var(--space-1);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 24px;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(120px, auto);
+      gap: var(--space-3);
+      align-items: end;
+    }
+    .field { display: grid; gap: var(--space-2); }
+    .field label,
+    .field span {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      padding: var(--space-3);
+      color: var(--fg);
+      outline: 0;
+    }
+    .field textarea { min-height: 94px; resize: vertical; }
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+    }
+    .help {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      text-wrap: pretty;
+    }
+    .error {
+      display: none;
+      color: var(--danger);
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .error.show { display: block; }
+    .project-list {
+      display: grid;
+      gap: var(--space-3);
+    }
+    .project-card {
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+    }
+    .project-card:hover,
+    .project-card.is-selected {
+      transform: translateY(-1px);
+      border-color: color-mix(in oklab, var(--accent), transparent 48%);
+      box-shadow: var(--elev-raised);
+    }
+    .project-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-4);
+      align-items: start;
+    }
+    .project-main strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--text-lg);
+    }
+    .path {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    .tag.path-tag {
+      max-width: 100%;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .tag.added {
+      color: var(--success);
+      background: color-mix(in oklab, var(--success), transparent 89%);
+    }
+    .status {
+      display: inline-flex;
+      justify-content: center;
+      width: max-content;
+      min-height: 26px;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-pill);
+      align-items: center;
+      font-size: var(--text-xs);
+      font-weight: 800;
+      background: color-mix(in oklab, var(--success), transparent 88%);
+      color: color-mix(in oklab, var(--success), var(--fg) 24%);
+    }
+    .status.warn {
+      background: color-mix(in oklab, var(--warn), transparent 86%);
+      color: color-mix(in oklab, var(--warn), var(--fg) 34%);
+    }
+    .status.danger {
+      background: color-mix(in oklab, var(--danger), transparent 90%);
+      color: var(--danger);
+    }
+    .detail-title {
+      display: grid;
+      gap: var(--space-1);
+    }
+    .detail-title strong { font-size: var(--text-xl); }
+    .tag-picker-tools {
+      display: grid;
+      gap: var(--space-2);
+    }
+    .tag-picker {
+      display: grid;
+      gap: var(--space-2);
+      max-height: min(48vh, 420px);
+      overflow: auto;
+      padding-right: var(--space-1);
+    }
+    .tag-option {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: var(--space-3);
+      align-items: center;
+      min-height: 40px;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .tag-option.is-root {
+      background: var(--surface);
+    }
+    .tag-option.is-root input {
+      visibility: hidden;
+    }
+    .tag-option[data-depth="1"] { margin-left: var(--space-5); }
+    .tag-option[data-depth="2"] { margin-left: var(--space-12); }
+    .tag-option input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .tag-option-main {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+    .tag-option-main span,
+    .tag-option-main small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tag-option-main span {
+      color: var(--fg-2);
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .tag-option-main small {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+    .tag-option-root {
+      min-width: 34px;
+      justify-self: end;
+      padding: 2px var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-xs);
+      font-weight: 800;
+      text-align: center;
+    }
+    .ai-card {
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+    }
+    .ai-card.is-strong {
+      border-color: color-mix(in oklab, var(--accent), transparent 58%);
+      background: color-mix(in oklab, var(--accent), transparent 96%);
+    }
+    .ai-card label {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: var(--space-3);
+      align-items: start;
+    }
+    .ai-card input { width: 16px; height: 16px; accent-color: var(--accent); margin-top: 3px; }
+    .ai-card strong {
+      display: block;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .ai-card p {
+      margin-top: var(--space-1);
+      color: var(--muted);
+      font-size: var(--text-sm);
+      text-wrap: pretty;
+    }
+    .confidence {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-size: var(--text-xs);
+      white-space: nowrap;
+    }
+    .prompt-preview {
+      display: none;
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--fg-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      white-space: pre-wrap;
+    }
+    .prompt-preview.show { display: block; }
+    .empty-state {
+      display: none;
+      padding: var(--space-4);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      color: var(--muted);
+      text-align: center;
+    }
+    .empty-state.show { display: block; }
+    .toast {
+      position: fixed;
+      right: var(--space-6);
+      bottom: var(--space-6);
+      max-width: 340px;
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      box-shadow: 0 20px 60px color-mix(in oklab, var(--fg), transparent 88%);
+      color: var(--fg-2);
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--motion-base) var(--ease-standard), opacity var(--motion-base) var(--ease-standard);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1280px) {
+      .main-grid { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+      .right-stack { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+    }
+    @media (max-width: 1180px) {
+      .app-shell { grid-template-columns: 72px minmax(0, 1fr); }
+      .sidebar { padding: var(--space-4); align-items: center; }
+      .brand span:last-child,
+      .nav-item span:last-child,
+      .sidebar-note { display: none; }
+      .nav-item { grid-template-columns: 1fr; padding: 0; place-items: center; width: 42px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 900px) {
+      .main-grid,
+      .right-stack { grid-template-columns: 1fr; }
+      .topbar { grid-template-columns: 1fr; }
+      .top-actions { justify-content: flex-start; }
+    }
+    @media (max-width: 760px) {
+      .app-shell { display: block; }
+      .sidebar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-between;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .nav-list { grid-auto-flow: column; overflow-x: auto; max-width: 70vw; }
+      .workspace { padding: var(--space-4); }
+      .metrics { grid-template-columns: 1fr; }
+      .project-main { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 430px) {
+      .workspace { padding: var(--space-3); }
+      .panel-body,
+      .panel-head,
+      .toolbar,
+      .metric-card { padding: var(--space-3); }
+      .top-actions,
+      .filter-row,
+      .form-grid { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+      .btn,
+      .chip { width: 100%; }
+      .tag-node[data-depth="1"],
+      .tag-node[data-depth="2"],
+      .tag-option[data-depth="1"],
+      .tag-option[data-depth="2"] { margin-left: 0; }
+      .ai-card label { grid-template-columns: 18px 1fr; }
+      .confidence { grid-column: 2; }
+      .toast { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-od-id="sidebar">
+      <a class="brand" href="index.html" aria-label="返回设计稿入口">
+        <img class="mark" src="assets/brand/repolens-mark.svg" alt="" width="36" height="36" />
+        <span>RepoLens</span>
+      </a>
+      <nav class="nav-list" aria-label="主导航">
+        <a class="nav-item" href="dashboard.html">
+          <span class="nav-ico">库</span><span>代码库</span>
+        </a>
+        <a class="nav-item" aria-current="page" href="tags.html">
+          <span class="nav-ico">签</span><span>层级标签</span>
+        </a>
+        <a class="nav-item" href="landing.html">
+          <span class="nav-ico">页</span><span>落地页</span>
+        </a>
+        <a class="nav-item" href="index.html">
+          <span class="nav-ico">总</span><span>设计入口</span>
+        </a>
+      </nav>
+      <section class="sidebar-note" data-od-id="tag-rules-note">
+        <h2>统一组织模型</h2>
+        <p>没有单独分类模型。每个项目可以挂多个标签节点，筛选父级时自动包含全部子孙节点。</p>
+        <button class="btn btn-primary" id="sidebar-ai-btn" type="button">AI 建议标签</button>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <section class="topbar" data-od-id="topbar">
+        <div class="title-block">
+          <h1>层级标签工作台</h1>
+          <p>把旧的扁平标签迁移为可维护的标签树，用完整路径组织本地代码项目；AI 只给建议，必须由用户确认后才会创建节点或写入项目归属。</p>
+        </div>
+        <div class="top-actions">
+          <a class="btn" href="dashboard.html">返回代码库</a>
+          <button class="btn" type="button" id="delete-tag-btn">删除当前标签</button>
+          <button class="btn btn-primary" type="button" id="create-path-btn">创建标签路径</button>
+        </div>
+      </section>
+
+      <section class="metrics" data-od-id="tag-metrics">
+        <article class="metric-card">
+          <span>根标签</span>
+          <strong id="root-count">3</strong>
+        </article>
+        <article class="metric-card">
+          <span>标签节点</span>
+          <strong id="node-count">8</strong>
+        </article>
+        <article class="metric-card">
+          <span>当前筛选项目</span>
+          <strong id="visible-count">2</strong>
+        </article>
+        <article class="metric-card">
+          <span>AI 可用状态</span>
+          <strong>Mock</strong>
+        </article>
+      </section>
+
+      <section class="toolbar" data-od-id="tag-search-filter">
+        <label class="search-box" aria-label="搜索标签树">
+          <span aria-hidden="true">⌕</span>
+          <input id="tag-search-input" type="search" placeholder="搜索标签名称或完整路径，例如 水健康 / 数据转换" autocomplete="off" />
+        </label>
+        <label class="search-box" aria-label="搜索项目列表">
+          <span aria-hidden="true">⌕</span>
+          <input id="project-search-input" type="search" placeholder="搜索项目名称、路径、描述或已选标签" autocomplete="off" />
+        </label>
+        <div class="filter-row" aria-label="快速筛选">
+          <button class="chip is-active" type="button" data-root-filter="all">全部</button>
+          <button class="chip" type="button" data-root-filter="业务域">业务域</button>
+          <button class="chip" type="button" data-root-filter="项目类型">项目类型</button>
+          <button class="chip" type="button" data-root-filter="维护状态">维护状态</button>
+        </div>
+      </section>
+
+      <div class="main-grid">
+        <section class="panel" data-od-id="tag-tree-panel">
+          <div class="panel-head">
+            <h2>标签树</h2>
+            <span class="status" id="selected-tag-status">业务域</span>
+          </div>
+          <div class="panel-body">
+            <div class="tag-tree" id="tag-tree" aria-label="层级标签树"></div>
+            <form class="form-grid" id="tag-form">
+              <label class="field">
+                <span>新增标签段</span>
+                <input id="tag-name" placeholder="例如 数据转换" autocomplete="off" />
+              </label>
+              <button class="btn btn-subtle" type="submit">添加子级</button>
+            </form>
+            <p class="error" id="tag-error">标签名不能为空，且不能包含 /。</p>
+            <p class="help">存储路径使用 <span class="path">业务域/水健康/数据转换</span>，界面展示为 <span class="path">业务域 / 水健康 / 数据转换</span>。</p>
+          </div>
+        </section>
+
+        <section class="panel" data-od-id="project-tag-results">
+          <div class="panel-head">
+            <h2>项目归属</h2>
+            <span class="status warn" id="filter-copy">包含子孙标签</span>
+          </div>
+          <div class="panel-body">
+            <div class="project-list" id="project-list"></div>
+            <div class="empty-state" id="empty-state">没有匹配项目。清空搜索或切换标签节点后再试。</div>
+          </div>
+        </section>
+
+        <div class="right-stack">
+          <section class="panel" data-od-id="project-tag-picker">
+            <div class="panel-head">
+              <h2>项目标签</h2>
+              <button class="btn" type="button" id="save-tags-btn">保存归属</button>
+            </div>
+            <div class="panel-body">
+              <div class="detail-title">
+                <strong id="detail-name">water-product-transform-info</strong>
+                <span class="path" id="detail-path">/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info</span>
+              </div>
+              <div class="tags" id="detail-tags"></div>
+              <div class="tag-picker-tools">
+                <label class="search-box" aria-label="搜索可选项目标签">
+                  <span aria-hidden="true">⌕</span>
+                  <input id="tag-picker-search-input" type="search" placeholder="在标签树里搜索可选标签" autocomplete="off" />
+                </label>
+              </div>
+              <div class="tag-picker" id="tag-picker" aria-label="项目标签选择"></div>
+              <p class="help">保存时以 tagIds 替换项目标签；重复 ID 会去重，未知 ID 需要失败而不是静默丢弃。</p>
+            </div>
+          </section>
+
+          <section class="panel" data-od-id="ai-tag-suggestions">
+            <div class="panel-head">
+              <h2>AI 建议标签</h2>
+              <button class="btn btn-primary" type="button" id="generate-ai-btn">AI 建议标签</button>
+            </div>
+            <div class="panel-body">
+              <p class="help" id="ai-status">AI 只读取已保存的项目元数据和现有标签树，不发送源码文件内容。</p>
+              <div id="suggestion-list"></div>
+              <button class="btn" type="button" id="prompt-btn">查看发送给 AI 的摘要</button>
+              <div class="prompt-preview" id="prompt-preview">project.name: water-product-transform-info
+project.path: /Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info
+description: 水健康客服数据转换工具
+techStacks: TypeScript, Vite
+existingTags: 业务域/水健康, 项目类型/CLI 工具, 维护状态/高频使用</div>
+              <button class="btn btn-primary" type="button" id="apply-ai-btn">应用所选标签</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">已完成</div>
+
+  <script>
+    const tags = [
+      { id: "domain", name: "业务域", path: "业务域", parentId: null, depth: 0 },
+      { id: "domain-water", name: "水健康", path: "业务域/水健康", parentId: "domain", depth: 1 },
+      { id: "domain-water-transform", name: "数据转换", path: "业务域/水健康/数据转换", parentId: "domain-water", depth: 2 },
+      { id: "domain-clean", name: "清洁客服", path: "业务域/清洁客服", parentId: "domain", depth: 1 },
+      { id: "type", name: "项目类型", path: "项目类型", parentId: null, depth: 0 },
+      { id: "type-cli", name: "CLI 工具", path: "项目类型/CLI 工具", parentId: "type", depth: 1 },
+      { id: "type-web", name: "Web App", path: "项目类型/Web App", parentId: "type", depth: 1 },
+      { id: "status", name: "维护状态", path: "维护状态", parentId: null, depth: 0 },
+      { id: "status-hot", name: "高频使用", path: "维护状态/高频使用", parentId: "status", depth: 1 },
+      { id: "status-personal", name: "自用核心", path: "维护状态/自用核心", parentId: "status", depth: 1 }
+    ];
+
+    const projects = {
+      water: {
+        name: "water-product-transform-info",
+        path: "/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info",
+        status: "活跃",
+        description: "水健康客服数据转换工具，负责把产品资料转换成训练与知识库需要的结构化结果。",
+        tagIds: ["domain-water-transform", "type-cli", "status-hot"]
+      },
+      todo: {
+        name: "myself-todo",
+        path: "/Users/ddd/Documents/myself-todo",
+        status: "活跃",
+        description: "个人任务管理应用，包含今日工作台、任务详情、快速添加和报告页。",
+        tagIds: ["type-web", "status-personal"]
+      },
+      clean: {
+        name: "clean-transform-info",
+        path: "/Users/ddd/D/feiyu/清洁客服/code/clean-transform-info",
+        status: "实验",
+        description: "清洁客服资料转换流程，输出 JSONL 批处理结果并对接训练映射。",
+        tagIds: ["domain-clean", "type-cli"]
+      },
+      rag: {
+        name: "rag-agent",
+        path: "/Users/ddd/Documents/rag-agent",
+        status: "活跃",
+        description: "表格用例驱动的 RAG 回归测试与产品参数问答实验工程。",
+        tagIds: ["type-cli", "status-hot"]
+      },
+      legacy: {
+        name: "legacy-client-site",
+        path: "/Users/ddd/Archive/client/legacy-client-site",
+        status: "缺失",
+        description: "历史客户站点记录，当前路径缺失，保留人工备注等待确认。",
+        tagIds: []
+      }
+    };
+
+    const tagTree = document.querySelector("#tag-tree");
+    const projectList = document.querySelector("#project-list");
+    const detailName = document.querySelector("#detail-name");
+    const detailPath = document.querySelector("#detail-path");
+    const detailTags = document.querySelector("#detail-tags");
+    const tagPicker = document.querySelector("#tag-picker");
+    const tagSearchInput = document.querySelector("#tag-search-input");
+    const projectSearchInput = document.querySelector("#project-search-input");
+    const tagPickerSearchInput = document.querySelector("#tag-picker-search-input");
+    const saveTagsBtn = document.querySelector("#save-tags-btn");
+    const selectedTagStatus = document.querySelector("#selected-tag-status");
+    const filterCopy = document.querySelector("#filter-copy");
+    const visibleCount = document.querySelector("#visible-count");
+    const nodeCount = document.querySelector("#node-count");
+    const rootCount = document.querySelector("#root-count");
+    const tagNameInput = document.querySelector("#tag-name");
+    const tagError = document.querySelector("#tag-error");
+    const emptyState = document.querySelector("#empty-state");
+    const suggestionList = document.querySelector("#suggestion-list");
+    const aiStatus = document.querySelector("#ai-status");
+    const promptPreview = document.querySelector("#prompt-preview");
+    const toast = document.querySelector("#toast");
+
+    let selectedTagId = null;
+    let selectedProjectId = "water";
+    let rootFilter = "all";
+    let generatedSuggestions = [];
+    const tagDrafts = {};
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function prettyPath(path) {
+      return path.split("/").join(" / ");
+    }
+
+    function getTag(id) {
+      return tags.find((tag) => tag.id === id);
+    }
+
+    function getProjectTags(project) {
+      return project.tagIds.map(getTag).filter(Boolean);
+    }
+
+    function normalize(value) {
+      return value.trim().toLowerCase();
+    }
+
+    function tagMatchesQuery(tag, query) {
+      return !query || tag.name.toLowerCase().includes(query) || prettyPath(tag.path).toLowerCase().includes(query);
+    }
+
+    function tagWithinRootFilter(tag) {
+      return rootFilter === "all" || tag.path === rootFilter || tag.path.startsWith(`${rootFilter}/`);
+    }
+
+    function ancestorsOf(tag) {
+      const ancestors = [];
+      let current = tag;
+      while (current && current.parentId) {
+        const parent = getTag(current.parentId);
+        if (parent) ancestors.unshift(parent);
+        current = parent;
+      }
+      return ancestors;
+    }
+
+    function descendantsOf(tagId) {
+      const tag = getTag(tagId);
+      if (!tag) return [];
+      return tags.filter((item) => item.id === tag.id || item.path.startsWith(`${tag.path}/`));
+    }
+
+    function projectMatchesSelectedTag(project) {
+      if (!selectedTagId) return true;
+      const subtree = descendantsOf(selectedTagId).map((tag) => tag.id);
+      return project.tagIds.some((tagId) => subtree.includes(tagId));
+    }
+
+    function updateFilterLabels() {
+      const tag = getTag(selectedTagId);
+      selectedTagStatus.textContent = tag ? tag.name : "全部标签";
+      filterCopy.textContent = tag ? `${prettyPath(tag.path)} · 包含子孙` : "全部项目";
+    }
+
+    function getDraftTagIds(projectId) {
+      return tagDrafts[projectId] || projects[projectId].tagIds;
+    }
+
+    function sameIds(a, b) {
+      const left = [...a].sort().join("|");
+      const right = [...b].sort().join("|");
+      return left === right;
+    }
+
+    function hasDraft(projectId) {
+      return Boolean(tagDrafts[projectId]) && !sameIds(tagDrafts[projectId], projects[projectId].tagIds);
+    }
+
+    function updateSaveState() {
+      const dirty = hasDraft(selectedProjectId);
+      saveTagsBtn.disabled = !dirty;
+      saveTagsBtn.textContent = dirty ? "保存归属（未保存）" : "已保存";
+    }
+
+    function getVisibleTagIds(query, respectRootFilter = true) {
+      const visible = new Set();
+      const scopeFilter = respectRootFilter ? tagWithinRootFilter : () => true;
+      tags.filter(scopeFilter).forEach((tag) => {
+        if (!tagMatchesQuery(tag, query)) return;
+        visible.add(tag.id);
+        ancestorsOf(tag).filter(scopeFilter).forEach((ancestor) => visible.add(ancestor.id));
+        descendantsOf(tag.id).filter(scopeFilter).forEach((descendant) => visible.add(descendant.id));
+      });
+      return visible;
+    }
+
+    function renderMetrics() {
+      rootCount.textContent = String(tags.filter((tag) => tag.parentId === null).length);
+      nodeCount.textContent = String(tags.length);
+    }
+
+    function renderTree() {
+      const query = normalize(tagSearchInput.value);
+      const visibleIds = getVisibleTagIds(query);
+      const visibleTags = tags
+        .filter(tagWithinRootFilter)
+        .filter((tag) => !query || visibleIds.has(tag.id));
+      tagTree.innerHTML = visibleTags.length ? visibleTags
+        .map((tag) => {
+          const count = Object.values(projects).filter((project) => project.tagIds.includes(tag.id)).length;
+          return `<button class="tag-node ${tag.id === selectedTagId ? "is-active" : ""}" type="button" data-tag-id="${tag.id}" data-depth="${tag.depth}">
+            <span><strong>${tag.name}</strong><small title="${prettyPath(tag.path)}">${prettyPath(tag.path)}</small></span>
+            <span class="count-pill">${count}</span>
+          </button>`;
+        })
+        .join("") : `<div class="empty-state show">没有匹配标签。清空标签搜索或切换根标签后再试。</div>`;
+      tagTree.querySelectorAll("[data-tag-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedTagId = button.dataset.tagId;
+          updateFilterLabels();
+          renderAll();
+        });
+      });
+    }
+
+    function renderProjects() {
+      const query = normalize(projectSearchInput.value);
+      let visible = 0;
+      projectList.innerHTML = Object.entries(projects).map(([id, project]) => {
+        const projectTags = getProjectTags(project);
+        const haystack = `${project.name} ${project.path} ${project.description} ${projectTags.map((tag) => tag.path).join(" ")}`.toLowerCase();
+        const matchesQuery = !query || haystack.includes(query);
+        const matchesTag = projectMatchesSelectedTag(project);
+        const shouldShow = matchesQuery && matchesTag;
+        if (shouldShow) visible += 1;
+        const statusClass = project.status === "缺失" ? "danger" : project.status === "实验" ? "warn" : "";
+        return `<article class="project-card ${id === selectedProjectId ? "is-selected" : ""}" data-project-id="${id}" ${shouldShow ? "" : "hidden"}>
+          <div class="project-main">
+            <div>
+              <strong>${project.name}</strong>
+              <div class="path">${project.path}</div>
+            </div>
+            <span class="status ${statusClass}">${project.status}</span>
+          </div>
+          <p class="help">${project.description}</p>
+          <div class="tags">${projectTags.length ? projectTags.map((tag) => `<span class="tag path-tag" title="${prettyPath(tag.path)}">${tag.name}</span>`).join("") : `<span class="tag">未归类</span>`}</div>
+        </article>`;
+      }).join("");
+      visibleCount.textContent = String(visible);
+      emptyState.classList.toggle("show", visible === 0);
+      projectList.querySelectorAll("[data-project-id]").forEach((card) => {
+        card.addEventListener("click", () => {
+          selectedProjectId = card.dataset.projectId;
+          renderAll();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const project = projects[selectedProjectId];
+      detailName.textContent = project.name;
+      detailPath.textContent = project.path;
+      const activeTagIds = getDraftTagIds(selectedProjectId);
+      const activeTags = activeTagIds.map(getTag).filter(Boolean);
+      detailTags.innerHTML = activeTags.length ? activeTags.map((tag) => `<span class="tag path-tag" title="${prettyPath(tag.path)}">${prettyPath(tag.path)}</span>`).join("") : `<span class="tag">未归类</span>`;
+      if (hasDraft(selectedProjectId)) {
+        detailTags.insertAdjacentHTML("beforeend", `<span class="tag added">未保存</span>`);
+      }
+      const query = normalize(tagPickerSearchInput.value);
+      const visibleIds = getVisibleTagIds(query, false);
+      const visibleTags = tags.filter((tag) => !query || visibleIds.has(tag.id));
+      tagPicker.innerHTML = visibleTags.length ? visibleTags
+        .map((tag) => {
+          const isRoot = tag.parentId === null;
+          const label = isRoot ? "根" : "可选";
+          return `<label class="tag-option ${isRoot ? "is-root" : ""}" data-depth="${tag.depth}">
+            <input type="checkbox" value="${tag.id}" ${activeTagIds.includes(tag.id) ? "checked" : ""} ${isRoot ? "disabled" : ""} />
+            <span class="tag-option-main">
+              <span>${tag.name}</span>
+              <small title="${prettyPath(tag.path)}">${prettyPath(tag.path)}</small>
+            </span>
+            <span class="tag-option-root">${label}</span>
+          </label>`;
+        })
+        .join("") : `<div class="empty-state show">没有匹配可选标签。清空搜索后再试。</div>`;
+      tagPicker.querySelectorAll("input[type='checkbox']").forEach((input) => {
+        input.addEventListener("change", () => {
+          const current = new Set(getDraftTagIds(selectedProjectId));
+          if (input.checked) {
+            current.add(input.value);
+          } else {
+            current.delete(input.value);
+          }
+          tagDrafts[selectedProjectId] = Array.from(current);
+          renderDetail();
+        });
+      });
+      updateSaveState();
+    }
+
+    function renderSuggestions() {
+      if (!generatedSuggestions.length) {
+        suggestionList.innerHTML = `<div class="empty-state show">点击“AI 建议标签”后，这里会展示待确认的建议路径。</div>`;
+        return;
+      }
+      suggestionList.innerHTML = generatedSuggestions.map((item) => `<article class="ai-card ${item.confidence >= 0.8 ? "is-strong" : ""}">
+        <label>
+          <input type="checkbox" data-suggestion-id="${item.id}" ${item.confidence >= 0.8 ? "checked" : ""} />
+          <span>
+            <strong>${prettyPath(item.path)}</strong>
+            <p>${item.rationale}</p>
+            <span class="tag ${item.kind === "existing_tag" ? "" : "added"}">${item.kind === "existing_tag" ? "复用现有标签" : "应用时创建路径"}</span>
+          </span>
+          <span class="confidence">${Math.round(item.confidence * 100)}%</span>
+        </label>
+      </article>`).join("");
+    }
+
+    function renderAll() {
+      renderMetrics();
+      updateFilterLabels();
+      renderTree();
+      renderProjects();
+      renderDetail();
+      renderSuggestions();
+    }
+
+    document.querySelector("#tag-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = tagNameInput.value.trim();
+      if (!value || value.includes("/")) {
+        tagError.classList.add("show");
+        return;
+      }
+      tagError.classList.remove("show");
+      const parent = getTag(selectedTagId);
+      if (!parent) {
+        tagError.textContent = "请先在标签树中选择一个父级节点。";
+        tagError.classList.add("show");
+        return;
+      }
+      const newPath = `${parent.path}/${value}`;
+      if (tags.some((tag) => tag.path === newPath)) {
+        tagError.textContent = "同级标签已存在。";
+        tagError.classList.add("show");
+        return;
+      }
+      tags.push({
+        id: `tag-${Date.now()}`,
+        name: value,
+        path: newPath,
+        parentId: parent.id,
+        depth: parent.depth + 1
+      });
+      tagNameInput.value = "";
+      showToast("已创建子级标签");
+      renderAll();
+    });
+
+    document.querySelector("#save-tags-btn").addEventListener("click", () => {
+      const checked = getDraftTagIds(selectedProjectId);
+      const unique = Array.from(new Set(checked));
+      const invalidIds = unique.filter((id) => {
+        const tag = getTag(id);
+        return !tag || tag.parentId === null;
+      });
+      if (invalidIds.length) {
+        showToast(`保存失败：存在不可用标签 ${invalidIds.join(", ")}`);
+        return;
+      }
+      projects[selectedProjectId].tagIds = unique;
+      delete tagDrafts[selectedProjectId];
+      showToast("项目标签归属已保存");
+      renderAll();
+    });
+
+    function generateSuggestions() {
+      const project = projects[selectedProjectId];
+      aiStatus.textContent = "正在生成标签建议";
+      generatedSuggestions = [
+        {
+          id: "s1",
+          kind: "existing_tag",
+          path: project.name.includes("water") ? "业务域/水健康/数据转换" : "项目类型/CLI 工具",
+          confidence: 0.91,
+          rationale: "项目名称、路径和描述都指向这个现有标签路径，优先复用已有节点。"
+        },
+        {
+          id: "s2",
+          kind: "existing_tag",
+          path: project.name.includes("todo") ? "维护状态/自用核心" : "维护状态/高频使用",
+          confidence: 0.84,
+          rationale: "该项目在工作台中属于高频打开或自用核心项目，适合作为维护状态标签。"
+        },
+        {
+          id: "s3",
+          kind: "new_tag_path",
+          path: "业务域/水健康/训练数据",
+          confidence: 0.67,
+          rationale: "描述提到训练与知识库产物，但当前树中没有训练数据叶子节点，建议人工确认后创建。"
+        }
+      ];
+      window.setTimeout(() => {
+        aiStatus.textContent = "已生成 3 条建议；置信度 80% 以上默认选中，应用前仍可取消。";
+        renderSuggestions();
+        showToast("AI 标签建议已生成");
+      }, 420);
+    }
+
+    document.querySelector("#generate-ai-btn").addEventListener("click", generateSuggestions);
+    document.querySelector("#sidebar-ai-btn").addEventListener("click", generateSuggestions);
+
+    document.querySelector("#apply-ai-btn").addEventListener("click", () => {
+      const checked = Array.from(suggestionList.querySelectorAll("input:checked")).map((input) => input.dataset.suggestionId);
+      if (!checked.length) {
+        showToast("请先选择要应用的建议");
+        return;
+      }
+      const draft = new Set(getDraftTagIds(selectedProjectId));
+      checked.forEach((id) => {
+        const suggestion = generatedSuggestions.find((item) => item.id === id);
+        if (!suggestion) return;
+        let tag = tags.find((item) => item.path === suggestion.path);
+        if (!tag) {
+          let parentId = null;
+          let parentPath = "";
+          suggestion.path.split("/").forEach((segment, index) => {
+            const path = index === 0 ? segment : `${parentPath}/${segment}`;
+            let existing = tags.find((item) => item.path === path);
+            if (!existing) {
+              existing = {
+                id: `tag-${Date.now()}-${index}`,
+                name: segment,
+                path,
+                parentId,
+                depth: index
+              };
+              tags.push(existing);
+            }
+            parentId = existing.id;
+            parentPath = path;
+            tag = existing;
+          });
+        }
+        if (tag) {
+          draft.add(tag.id);
+        }
+      });
+      tagDrafts[selectedProjectId] = Array.from(draft);
+      showToast("已加入待保存归属，请确认后保存");
+      renderAll();
+    });
+
+    document.querySelector("#prompt-btn").addEventListener("click", () => {
+      promptPreview.classList.toggle("show");
+    });
+
+    document.querySelector("#delete-tag-btn").addEventListener("click", () => {
+      const tag = getTag(selectedTagId);
+      if (!tag) return;
+      showToast(`删除 ${prettyPath(tag.path)} 前需要二次确认`);
+    });
+
+    document.querySelector("#create-path-btn").addEventListener("click", () => {
+      tagNameInput.focus();
+      showToast("在左侧输入标签段，将作为当前节点子级创建");
+    });
+
+    document.querySelectorAll("[data-root-filter]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll("[data-root-filter]").forEach((item) => item.classList.remove("is-active"));
+        chip.classList.add("is-active");
+        rootFilter = chip.dataset.rootFilter;
+        const rootTag = tags.find((tag) => tag.path === rootFilter);
+        selectedTagId = rootFilter === "all" ? null : rootTag?.id || null;
+        renderAll();
+      });
+    });
+
+    tagSearchInput.addEventListener("input", renderAll);
+    projectSearchInput.addEventListener("input", renderAll);
+    tagPickerSearchInput.addEventListener("input", renderDetail);
+    renderAll();
+  </script>
+</body>
+</html>

@@ -184,6 +184,11 @@
       border-color: transparent;
       background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
     }
+    .btn-subtle {
+      color: var(--accent);
+      border-color: color-mix(in oklab, var(--accent), transparent 70%);
+      background: color-mix(in oklab, var(--accent), transparent 92%);
+    }
     .btn[disabled] {
       cursor: not-allowed;
       color: var(--meta);
@@ -479,17 +484,17 @@
         <span>RepoLens</span>
       </a>
       <nav class="nav-list" aria-label="主导航">
-        <a class="nav-item" aria-current="page" href="#">
+        <a class="nav-item" aria-current="page" href="dashboard.html">
           <span class="nav-ico">库</span><span>代码库</span>
         </a>
-        <a class="nav-item" href="#">
-          <span class="nav-ico">扫</span><span>扫描源</span>
+        <a class="nav-item" href="tags.html">
+          <span class="nav-ico">签</span><span>层级标签</span>
         </a>
         <a class="nav-item" href="#">
           <span class="nav-ico">缺</span><span>缺失路径</span>
         </a>
-        <a class="nav-item" href="#">
-          <span class="nav-ico">设</span><span>设置</span>
+        <a class="nav-item" href="landing.html">
+          <span class="nav-ico">页</span><span>落地页</span>
         </a>
       </nav>
       <section class="scan-panel" data-od-id="sidebar-scan">
@@ -503,9 +508,10 @@
       <section class="topbar" data-od-id="topbar">
         <div class="title-block">
           <h1>本地代码库</h1>
-          <p>搜索项目、维护备注，并从一行记录直接打开常用开发工具。</p>
+          <p>搜索项目、维护备注、按层级标签过滤，并从一行记录直接打开常用开发工具。</p>
         </div>
         <div class="top-actions">
+          <a class="btn" href="tags.html">管理层级标签</a>
           <a class="btn" href="landing.html">查看落地页</a>
           <button class="btn" type="button" id="add-root-btn">添加扫描根</button>
           <button class="btn btn-primary" type="button" id="scan-btn">扫描全部</button>
@@ -523,6 +529,8 @@
           <button class="chip" type="button" data-filter="experimental">实验</button>
           <button class="chip" type="button" data-filter="missing">缺失</button>
           <button class="chip" type="button" data-filter="favorite">收藏</button>
+          <button class="chip" type="button" data-filter="domain-water">业务域 / 水健康</button>
+          <button class="chip" type="button" data-filter="type-cli">项目类型 / CLI 工具</button>
         </div>
       </section>
 
@@ -546,16 +554,16 @@
           <section class="library" data-od-id="project-library" aria-label="项目列表">
             <div class="library-head" aria-hidden="true">
               <span>项目</span>
-              <span>技术栈</span>
+              <span>层级标签</span>
               <span>状态</span>
               <span>打开方式</span>
             </div>
-            <article class="project-row is-selected" role="button" tabindex="0" data-id="water" data-status="active" data-tags="typescript vite transform feishu">
+            <article class="project-row is-selected" role="button" tabindex="0" data-id="water" data-status="active" data-tags="业务域 水健康 数据转换 项目类型 CLI 工具 维护状态 高频使用 typescript vite transform feishu">
               <span class="project-title">
                 <strong>water-product-transform-info</strong>
                 <span class="path">/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info</span>
               </span>
-              <span class="tags"><span class="tag">TypeScript</span><span class="tag">Vite</span><span class="tag">飞书</span></span>
+              <span class="tags"><span class="tag" title="业务域 / 水健康 / 数据转换">数据转换</span><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span><span class="tag" title="维护状态 / 高频使用">高频使用</span></span>
               <span class="status">活跃</span>
               <span class="actions">
                 <button class="tool" type="button" title="文件夹">F</button>
@@ -565,12 +573,12 @@
                 <button class="tool" type="button" title="Cursor">C</button>
               </span>
             </article>
-            <article class="project-row" role="button" tabindex="0" data-id="todo" data-status="active" data-tags="node react todo pm2">
+            <article class="project-row" role="button" tabindex="0" data-id="todo" data-status="active" data-tags="项目类型 Web App 维护状态 自用核心 node react todo pm2">
               <span class="project-title">
                 <strong>myself-todo</strong>
                 <span class="path">/Users/ddd/Documents/myself-todo</span>
               </span>
-              <span class="tags"><span class="tag">Node.js</span><span class="tag">React</span><span class="tag">PM2</span></span>
+              <span class="tags"><span class="tag" title="项目类型 / Web App">Web App</span><span class="tag" title="维护状态 / 自用核心">自用核心</span></span>
               <span class="status">活跃</span>
               <span class="actions">
                 <button class="tool" type="button" title="文件夹">F</button>
@@ -580,12 +588,12 @@
                 <button class="tool" type="button" title="Cursor">C</button>
               </span>
             </article>
-            <article class="project-row" role="button" tabindex="0" data-id="clean" data-status="experimental" data-tags="jsonl training map node">
+            <article class="project-row" role="button" tabindex="0" data-id="clean" data-status="experimental" data-tags="业务域 清洁客服 训练数据 项目类型 CLI 工具 jsonl training map node">
               <span class="project-title">
                 <strong>clean-transform-info</strong>
                 <span class="path">/Users/ddd/D/feiyu/清洁客服/code/clean-transform-info</span>
               </span>
-              <span class="tags"><span class="tag">JSONL</span><span class="tag">Node.js</span></span>
+              <span class="tags"><span class="tag" title="业务域 / 清洁客服 / 训练数据">训练数据</span><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span></span>
               <span class="status experimental">实验</span>
               <span class="actions">
                 <button class="tool" type="button" title="文件夹">F</button>
@@ -595,12 +603,12 @@
                 <button class="tool" type="button" title="Cursor">C</button>
               </span>
             </article>
-            <article class="project-row" role="button" tabindex="0" data-id="rag" data-status="active" data-tags="rag xlsx tsx tests">
+            <article class="project-row" role="button" tabindex="0" data-id="rag" data-status="active" data-tags="项目类型 CLI 工具 维护状态 高频使用 rag xlsx tsx tests">
               <span class="project-title">
                 <strong>rag-agent</strong>
                 <span class="path">/Users/ddd/Documents/rag-agent</span>
               </span>
-              <span class="tags"><span class="tag">RAG</span><span class="tag">XLSX</span><span class="tag">测试</span></span>
+              <span class="tags"><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span><span class="tag" title="维护状态 / 高频使用">高频使用</span></span>
               <span class="status">活跃</span>
               <span class="actions">
                 <button class="tool" type="button" title="文件夹">F</button>
@@ -610,12 +618,12 @@
                 <button class="tool" type="button" title="Cursor">C</button>
               </span>
             </article>
-            <article class="project-row" role="button" tabindex="0" data-id="legacy" data-status="missing" data-tags="archive php client">
+            <article class="project-row" role="button" tabindex="0" data-id="legacy" data-status="missing" data-tags="未归类 archive php client">
               <span class="project-title">
                 <strong>legacy-client-site</strong>
                 <span class="path">/Users/ddd/Archive/client/legacy-client-site</span>
               </span>
-              <span class="tags"><span class="tag">PHP</span><span class="tag">归档</span></span>
+              <span class="tags"><span class="tag">未归类</span></span>
               <span class="status missing">缺失</span>
               <span class="actions">
                 <button class="tool" type="button" title="文件夹" disabled>F</button>
@@ -651,7 +659,9 @@
                 <span>测试命令</span>
                 <input id="detail-test" value="pnpm test" />
               </label>
-              <div class="tags" id="detail-tags"><span class="tag">TypeScript</span><span class="tag">Vite</span><span class="tag">飞书</span></div>
+              <div class="tags" id="detail-tags"><span class="tag" title="业务域 / 水健康 / 数据转换">业务域 / 水健康 / 数据转换</span><span class="tag" title="项目类型 / CLI 工具">项目类型 / CLI 工具</span><span class="tag" title="维护状态 / 高频使用">维护状态 / 高频使用</span></div>
+              <a class="btn" href="tags.html">编辑层级标签</a>
+              <button class="btn btn-subtle" type="button" id="ai-tags-btn">AI 建议标签</button>
               <button class="btn btn-primary" type="button" id="save-detail">保存人工字段</button>
             </div>
           </section>
@@ -700,7 +710,7 @@
         description: "水健康客服数据转换工具，负责把产品资料转换成训练与知识库需要的结构化结果。",
         start: "pnpm dev",
         test: "pnpm test",
-        tags: ["TypeScript", "Vite", "飞书"]
+        tags: ["业务域 / 水健康 / 数据转换", "项目类型 / CLI 工具", "维护状态 / 高频使用"]
       },
       todo: {
         name: "myself-todo",
@@ -708,7 +718,7 @@
         description: "个人任务管理应用，包含今日工作台、任务详情、快速添加和报告页。",
         start: "npm run dev",
         test: "npm test",
-        tags: ["Node.js", "React", "PM2"]
+        tags: ["项目类型 / Web App", "维护状态 / 自用核心"]
       },
       clean: {
         name: "clean-transform-info",
@@ -716,7 +726,7 @@
         description: "清洁客服资料转换流程，输出 JSONL 批处理结果并对接训练映射。",
         start: "pnpm start",
         test: "pnpm test",
-        tags: ["JSONL", "Node.js"]
+        tags: ["业务域 / 清洁客服 / 训练数据", "项目类型 / CLI 工具"]
       },
       rag: {
         name: "rag-agent",
@@ -724,7 +734,7 @@
         description: "基于表格用例驱动的 RAG 回归测试与产品参数问答实验工程。",
         start: "pnpm dev",
         test: "node --import tsx --test",
-        tags: ["RAG", "XLSX", "测试"]
+        tags: ["项目类型 / CLI 工具", "维护状态 / 高频使用"]
       },
       legacy: {
         name: "legacy-client-site",
@@ -732,7 +742,7 @@
         description: "历史客户站点记录，当前路径缺失，保留人工备注等待确认。",
         start: "",
         test: "",
-        tags: ["PHP", "归档"]
+        tags: ["未归类"]
       }
     };
 
@@ -747,6 +757,10 @@
     const visibleCount = document.querySelector("#visible-count");
     const issueCount = document.querySelector("#issue-count");
     const toast = document.querySelector("#toast");
+    const tagFilterNeedles = {
+      "domain-water": "业务域 水健康",
+      "type-cli": "项目类型 cli 工具"
+    };
     let activeFilter = "all";
     let activeProject = "water";
 
@@ -765,7 +779,7 @@
       detailDescription.value = project.description;
       detailStart.value = project.start;
       detailTest.value = project.test;
-      detailTags.innerHTML = project.tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
+      detailTags.innerHTML = project.tags.map((tag) => `<span class="tag" title="${tag}">${tag}</span>`).join("");
     }
 
     function applyFilters() {
@@ -776,7 +790,8 @@
         const status = row.dataset.status;
         const haystack = `${row.textContent} ${row.dataset.tags}`.toLowerCase();
         const matchesQuery = !query || haystack.includes(query);
-        const matchesFilter = activeFilter === "all" || status === activeFilter || (activeFilter === "favorite" && row.dataset.id === "water");
+        const matchesTagFilter = tagFilterNeedles[activeFilter] ? haystack.includes(tagFilterNeedles[activeFilter]) : false;
+        const matchesFilter = activeFilter === "all" || status === activeFilter || matchesTagFilter || (activeFilter === "favorite" && row.dataset.id === "water");
         const shouldShow = matchesQuery && matchesFilter;
         row.hidden = !shouldShow;
         if (shouldShow) visible += 1;
@@ -839,6 +854,13 @@
       project.start = detailStart.value;
       project.test = detailTest.value;
       showToast("人工字段已保存，后续扫描不会覆盖");
+    });
+
+    document.querySelector("#ai-tags-btn").addEventListener("click", () => {
+      showToast("已生成 3 条标签建议；请在层级标签工作台确认后应用");
+      window.setTimeout(() => {
+        window.location.href = "tags.html";
+      }, 650);
     });
 
     function runScan() {
