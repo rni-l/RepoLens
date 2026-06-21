@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search, Settings, Plus } from "lucide-react";
+import { AddScanRootDialog } from "../components/AddScanRootDialog";
 import { ProjectDetailPanel } from "../components/ProjectDetailPanel";
 import { ProjectSearchBar, type FilterKey } from "../components/ProjectSearchBar";
 import { ProjectTable } from "../components/ProjectTable";
 import { ScanRootList } from "../components/ScanRootList";
+import { SettingsPanel } from "../components/SettingsPanel";
 import { api } from "../lib/tauri";
 import type {
   OpenAction,
@@ -15,6 +17,8 @@ import type {
   ScanSummary
 } from "../lib/types";
 
+type NavTarget = "library" | "scan-roots" | "settings";
+
 export function ProjectLibraryPage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [scanRoots, setScanRoots] = useState<ScanRoot[]>([]);
@@ -25,6 +29,9 @@ export function ProjectLibraryPage() {
   const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const [toast, setToast] = useState("准备就绪");
   const [isBusy, setIsBusy] = useState(false);
+  const [isAddRootOpen, setIsAddRootOpen] = useState(false);
+  const [isAddingRoot, setIsAddingRoot] = useState(false);
+  const [activeNav, setActiveNav] = useState<NavTarget>("library");
 
   const filters = useMemo<ProjectFilters>(() => {
     if (filter === "favorite") {
@@ -57,6 +64,19 @@ export function ProjectLibraryPage() {
     void load().catch((error) => showToast(errorMessage(error)));
   }, [load]);
 
+  useEffect(() => {
+    const syncActiveNav = () => {
+      const target = window.location.hash.replace("#", "");
+      if (target === "library" || target === "scan-roots" || target === "settings") {
+        setActiveNav(target);
+      }
+    };
+
+    syncActiveNav();
+    window.addEventListener("hashchange", syncActiveNav);
+    return () => window.removeEventListener("hashchange", syncActiveNav);
+  }, []);
+
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
@@ -64,6 +84,7 @@ export function ProjectLibraryPage() {
 
   const selectedId = selectedProject?.id ?? projects[0]?.id ?? null;
   const enabledRoots = scanRoots.filter((root) => root.enabled).length;
+  const availableOpenActions = openActions.filter((action) => action.available).length;
   const issueCount = projects.filter((project) => project.status === "missing").length + (scanSummary?.errors.length ?? 0);
 
   async function selectProject(projectId: string) {
@@ -126,15 +147,17 @@ export function ProjectLibraryPage() {
     }
   }
 
-  async function addRootFromPrompt() {
-    const path = window.prompt("输入要加入 RepoLens 的扫描根路径");
-    if (!path) return;
+  async function addRoot(path: string) {
+    setIsAddingRoot(true);
     try {
       await api.addScanRoot(path);
       await load();
+      setIsAddRootOpen(false);
       showToast("扫描根已添加");
     } catch (error) {
       showToast(errorMessage(error));
+    } finally {
+      setIsAddingRoot(false);
     }
   }
 
@@ -146,13 +169,28 @@ export function ProjectLibraryPage() {
           <span>RepoLens</span>
         </a>
         <nav className="nav-list" aria-label="主导航">
-          <a className="nav-item" aria-current="page" href="#library">
+          <a
+            className="nav-item"
+            aria-current={activeNav === "library" ? "page" : undefined}
+            href="#library"
+            onClick={() => setActiveNav("library")}
+          >
             <span className="nav-ico"><Search size={14} /></span><span>代码库</span>
           </a>
-          <a className="nav-item" href="#scan-roots">
+          <a
+            className="nav-item"
+            aria-current={activeNav === "scan-roots" ? "page" : undefined}
+            href="#scan-roots"
+            onClick={() => setActiveNav("scan-roots")}
+          >
             <span className="nav-ico"><RefreshCw size={14} /></span><span>扫描源</span>
           </a>
-          <a className="nav-item" href="#settings">
+          <a
+            className="nav-item"
+            aria-current={activeNav === "settings" ? "page" : undefined}
+            href="#settings"
+            onClick={() => setActiveNav("settings")}
+          >
             <span className="nav-ico"><Settings size={14} /></span><span>设置</span>
           </a>
         </nav>
@@ -176,7 +214,7 @@ export function ProjectLibraryPage() {
             <p>搜索项目、维护备注，并从一行记录直接打开常用开发工具。</p>
           </div>
           <div className="top-actions">
-            <button className="btn" type="button" onClick={addRootFromPrompt}>
+            <button className="btn" type="button" onClick={() => setIsAddRootOpen(true)}>
               <Plus size={16} /> 添加扫描根
             </button>
             <button className="btn btn-primary" type="button" disabled={isBusy} onClick={runScan}>
@@ -225,9 +263,21 @@ export function ProjectLibraryPage() {
               onCopyPath={(path) => void copyPath(path)}
             />
             <ScanRootList roots={scanRoots} onToggle={(id, enabled) => void toggleRoot(id, enabled)} />
+            <SettingsPanel
+              enabledRootCount={enabledRoots}
+              totalRootCount={scanRoots.length}
+              openActionCount={availableOpenActions}
+            />
           </aside>
         </div>
       </main>
+
+      <AddScanRootDialog
+        open={isAddRootOpen}
+        saving={isAddingRoot}
+        onClose={() => setIsAddRootOpen(false)}
+        onSubmit={(path) => void addRoot(path)}
+      />
 
       <div className={`toast ${toast ? "show" : ""}`} role="status" aria-live="polite">
         {toast}

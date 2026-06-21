@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">RepoLens 应用图标</title>
+  <desc id="desc">RepoLens 桌面应用图标，使用本地代码目录、镜头焦点和路径节点构成。</desc>
+  <defs>
+    <linearGradient id="rl-bg" x1="170" y1="120" x2="890" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7d2ae8"/>
+      <stop offset="1" stop-color="#00c4cc"/>
+    </linearGradient>
+    <linearGradient id="rl-card" x1="248" y1="246" x2="790" y2="812" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eef0fc"/>
+    </linearGradient>
+    <filter id="rl-shadow" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="78" stdDeviation="86" flood-color="#0e1318" flood-opacity="0.2"/>
+    </filter>
+    <filter id="rl-soft" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#7d2ae8" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#rl-bg)"/>
+  <path d="M225 352C225 300.9 265.9 260 317 260H432l57.6 64H708C759.1 324 800 364.9 800 416V728C800 785.6 753.6 832 696 832H329C271.4 832 225 785.6 225 728V352Z" fill="url(#rl-card)" filter="url(#rl-shadow)"/>
+  <path d="M300 435H724" stroke="#c7cdd3" stroke-width="32" stroke-linecap="round"/>
+  <path d="M348 578H446M348 692H414M625 692H704" stroke="#9aa0a6" stroke-width="40" stroke-linecap="round"/>
+  <path d="M480 518C512 489 554 474 600 474C704 474 788 558 788 662C788 766 704 850 600 850C496 850 412 766 412 662C412 631 419 602 432 577" fill="none" stroke="#0e1318" stroke-width="56" stroke-linecap="round" filter="url(#rl-soft)"/>
+  <path d="M588 558V662H692" fill="none" stroke="#7d2ae8" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="600" cy="662" r="64" fill="#00c4cc" stroke="#ffffff" stroke-width="32"/>
+  <circle cx="348" cy="578" r="34" fill="#7d2ae8"/>
+  <circle cx="704" cy="692" r="34" fill="#00b894"/>
+</svg>

@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RepoLensDatabase } from "../src/backend/database.js";
+import { RepoLensService } from "../src/backend/appService.js";
 import { scanRoots } from "../src/backend/scanner.js";
 import { extractProjectMetadata } from "../src/backend/metadata.js";
 
@@ -75,4 +76,25 @@ test("rescans preserve user-maintained project fields", async () => {
   assert.equal(rescanned.descriptionSource, "user");
   assert.equal(rescanned.startCommandSource, "user");
   assert.equal(rescanned.testCommandSource, "user");
+});
+
+test("service validates scan root folders before saving", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-root-"));
+  const dbPath = path.join(tempDir, "index.sqlite");
+  const workspace = path.join(tempDir, "workspace");
+  await fs.mkdir(workspace, { recursive: true });
+
+  const service = new RepoLensService(new RepoLensDatabase(dbPath));
+  const root = await service.addScanRoot(workspace);
+  assert.equal(root.path, workspace);
+
+  await assert.rejects(
+    () => service.addScanRoot(path.join(tempDir, "missing")),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "scan_root_not_found" &&
+      error.message === "Scan root path must be an existing folder."
+  );
+  service.close();
 });

@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RepoLens · 本地代码项目目录</title>
+  <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/repolens-app-icon-32.png" />
+  <link rel="apple-touch-icon" href="assets/brand/repolens-app-icon-256.png" />
   <style>
     :root {
       --bg: #ffffff;
@@ -108,13 +111,8 @@
       width: 34px;
       height: 34px;
       border-radius: var(--radius-md);
-      display: grid;
-      place-items: center;
-      color: var(--accent-on);
-      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
+      display: block;
       box-shadow: 0 8px 22px color-mix(in oklab, var(--accent), transparent 72%);
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
     }
     nav { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; }
     nav a { color: var(--muted); font-weight: 600; }
@@ -353,7 +351,7 @@
   <header class="topnav" data-od-id="topnav">
     <div class="container topnav-inner">
       <a class="brand" href="index.html" aria-label="返回设计稿入口">
-        <span class="mark">RL</span>
+        <img class="mark" src="assets/brand/repolens-mark.svg" alt="" width="34" height="34" />
         <span>RepoLens</span>
       </a>
       <nav aria-label="页面导航">

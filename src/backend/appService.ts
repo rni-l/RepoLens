@@ -56,7 +56,12 @@ export class RepoLensService implements AppApi {
   }
 
   async addScanRoot(path: string): Promise<ScanRoot> {
-    return this.database.addScanRoot(path);
+    const rootPath = normalizeFsPath(path);
+    const stats = await fs.stat(rootPath).catch(() => null);
+    if (!stats?.isDirectory()) {
+      throw new RepoLensError("scan_root_not_found", "Scan root path must be an existing folder.");
+    }
+    return this.database.addScanRoot(rootPath);
   }
 
   async updateScanRoot(id: string, patch: ScanRootUpdatePatch): Promise<ScanRoot> {

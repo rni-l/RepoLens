@@ -8,7 +8,7 @@ type Props = {
 export function ScanRootList({ roots, onToggle }: Props) {
   const enabledCount = roots.filter((root) => root.enabled).length;
   return (
-    <section className="panel" data-od-id="scan-roots">
+    <section className="panel" id="scan-roots" data-od-id="scan-roots" tabIndex={-1}>
       <div className="panel-head">
         <h2>扫描根</h2>
         <span className="status">{enabledCount} 个启用</span>
