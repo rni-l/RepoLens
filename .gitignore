@@ -1,4 +1,9 @@
 node_modules
 dist
+dist-backend
 output
 .nev
+.playwright-cli
+.DS_Store
+
+src-tauri
