@@ -14,11 +14,14 @@ The first version should prioritize reliable local indexing, fast search, editab
 ## Confirmed Product Decisions
 
 - Build RepoLens as a Tauri desktop application.
-- Use React/Vite/TypeScript for the frontend.
-- Use Tauri/Rust for local filesystem scanning, opening external apps, and OS integration.
+- Use Tauri, Node.js, React, TypeScript, and Vite as the implementation stack.
+- Use React/Vite/TypeScript for the desktop UI.
+- Use Node.js/TypeScript for product logic: filesystem scanning, metadata extraction, SQLite access, search, and open-action orchestration.
+- Keep the Tauri native layer thin. Tauri provides the desktop shell and OS bridge; it should not become the main business-logic backend.
 - Use SQLite as the local index database.
 - Users explicitly configure scan root directories. RepoLens must not scan the whole computer by default.
 - Automatic project detection uses strict marker rules.
+- First-version project detection should focus on the user's likely local app/script repos. Do not add every ecosystem marker by default.
 - Users can manually add projects missed by scanning.
 - Project list rows must include quick actions for Folder, Terminal, iTerm2, VS Code, and Cursor.
 - UI visual design will be produced separately and later converted into React components.
@@ -54,22 +57,33 @@ Out of scope:
 
 ## Application Architecture
 
-RepoLens has three main layers:
+RepoLens has four main layers:
 
-1. React frontend
-2. Tauri command layer
-3. SQLite local database
+1. React/Vite frontend
+2. Node.js/TypeScript application service layer
+3. Thin Tauri desktop shell and bridge
+4. SQLite local database
 
-The frontend owns presentation and interaction state. It should not directly access the filesystem. It calls Tauri commands through a small typed wrapper.
+The frontend owns presentation and interaction state. It should call a small typed API wrapper instead of reaching directly into filesystem or database code.
 
-The Tauri/Rust layer owns:
+The Node.js/TypeScript service layer owns the main product logic. This can be implemented as a local Node-powered service or sidecar managed by the Tauri app. The important boundary is that RepoLens product logic stays in JavaScript/TypeScript, not in Go or Rust:
 
 - Filesystem traversal
 - Project detection
 - Metadata extraction
 - SQLite reads and writes
-- External app detection
-- External app launch commands
+- Search and filtering
+- User field preservation
+- External app availability checks
+- External app launch orchestration
+
+The Tauri layer stays intentionally small:
+
+- Desktop window lifecycle
+- Secure frontend-to-service bridge
+- Native folder picker integration
+- OS-level permissions and packaging constraints
+- Minimal native glue required by Tauri
 
 SQLite owns durable local state:
 
@@ -79,7 +93,7 @@ SQLite owns durable local state:
 - Tags
 - App settings
 
-This split keeps future UI redesigns cheap. The generated HTML can be converted into React components without changing scan logic or storage contracts.
+This split keeps future UI redesigns cheap. The generated HTML can be converted into React components without changing scan logic or storage contracts, and the product remains primarily in the JavaScript/TypeScript ecosystem.
 
 ## Frontend Structure
 
@@ -257,7 +271,7 @@ export async function detectOpenActions(): Promise<OpenActionAvailability[]>;
 export async function openProject(projectId: string, action: OpenAction): Promise<void>;
 ```
 
-Suggested Rust command names:
+Suggested command names:
 
 ```txt
 list_projects
@@ -332,20 +346,18 @@ A directory is a project root if it contains at least one strict marker:
 ```txt
 .git
 package.json
-Cargo.toml
 pyproject.toml
 requirements.txt
-go.mod
 pom.xml
 build.gradle
 composer.json
-Gemfile
-pubspec.yaml
 deno.json
 tsconfig.json
 vite.config.ts
 next.config.js
 ```
+
+Do not include markers for every programming language in the first version. The implementation stack is Tauri + Node.js + React + TypeScript + Vite. Project detection rules are product behavior and should stay configurable, so extra ecosystems can be added later only when needed.
 
 When a project root is detected, the scanner records that directory as one project and does not continue recursively into it for the first version. This avoids accidentally treating `src`, `examples`, or nested dependency folders as separate projects.
 
@@ -358,18 +370,14 @@ Project name:
 1. Manifest name, such as `package.json.name`
 2. Directory name
 
-Tech stack:
+Detected project labels:
 
-- `package.json`: Node.js or JavaScript/TypeScript
+- `package.json`: Node.js or JavaScript/TypeScript project
 - `vite.config.*`: Vite
 - `next.config.*`: Next.js
-- `Cargo.toml`: Rust
 - `pyproject.toml` or `requirements.txt`: Python
-- `go.mod`: Go
 - `pom.xml` or `build.gradle`: Java
 - `composer.json`: PHP
-- `Gemfile`: Ruby
-- `pubspec.yaml`: Flutter or Dart
 
 README summary:
 
@@ -381,9 +389,8 @@ README summary:
 Commands:
 
 - Node: use `scripts.dev`, then `scripts.start` for start command; use `scripts.test` for test command.
-- Rust: `cargo run`, `cargo test`.
-- Go: `go run .`, `go test ./...`.
 - Python: infer only when obvious, otherwise leave empty.
+- Java/PHP: infer only when obvious, otherwise leave empty.
 
 Entry files:
 
@@ -391,10 +398,8 @@ Entry files:
 - `src/main.ts`
 - `src/index.tsx`
 - `src/index.ts`
-- `src/main.rs`
 - `main.py`
 - `app.py`
-- `cmd/*/main.go`
 
 ## User Field Preservation
 
@@ -421,7 +426,7 @@ Global search should cover:
 - Description
 - README summary
 - Tags
-- Tech stack
+- Project label
 - Start command
 
 The first implementation can use SQLite `LIKE` queries. FTS5 can be added later if the project list becomes large.
@@ -429,7 +434,7 @@ The first implementation can use SQLite `LIKE` queries. FTS5 can be added later 
 Filters:
 
 - Status
-- Tech stack
+- Project label
 - Tag
 - Scan root
 - Source
@@ -536,7 +541,7 @@ export type ProjectSummaryDraft = {
 - Scanner detects projects by strict markers.
 - Scanner ignores dependency and build directories.
 - Manual project add works for folders without strict markers.
-- Project list supports search by name, path, tag, tech stack, and description.
+- Project list supports search by name, path, tag, detected project label, and description.
 - Project details can be edited and saved.
 - User-edited description and commands survive a rescan.
 - Each project row exposes Folder, Terminal, iTerm2, Code, and Cursor actions.
