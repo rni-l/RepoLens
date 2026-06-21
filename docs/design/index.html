@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RepoLens 设计稿入口</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f5f7;
+      --surface-warm: var(--surface);
+      --fg: #0e1318;
+      --fg-2: #3c4043;
+      --muted: #5f6368;
+      --meta: #9aa0a6;
+      --border: #e1e3e6;
+      --border-soft: var(--border);
+      --accent: #7d2ae8;
+      --accent-on: #ffffff;
+      --accent-hover: #6815d4;
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #00b894;
+      --warn: #ffb020;
+      --danger: #ff5757;
+      --font-display: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-body: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --text-xs: 11px;
+      --text-sm: 12px;
+      --text-base: 14px;
+      --text-lg: 16px;
+      --text-xl: 18px;
+      --text-2xl: 24px;
+      --text-3xl: 36px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.15;
+      --tracking-display: -0.02em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 96px;
+      --section-y-tablet: 64px;
+      --section-y-phone: 48px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --focus-ring: 0 0 0 3px rgba(125, 42, 232, 0.16);
+      --motion-fast: 180ms;
+      --motion-base: 280ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --container-max: 1320px;
+      --container-gutter-desktop: 32px;
+      --container-gutter-tablet: 24px;
+      --container-gutter-phone: 16px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    .shell {
+      width: min(var(--container-max), calc(100% - var(--container-gutter-desktop) * 2));
+      margin: 0 auto;
+    }
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: color-mix(in oklab, var(--bg), transparent 8%);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-md);
+      display: grid;
+      place-items: center;
+      color: var(--accent-on);
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
+      box-shadow: 0 8px 22px color-mix(in oklab, var(--accent), transparent 72%);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+    nav {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    nav a, .btn {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 0 var(--space-4);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      color: var(--fg-2);
+      background: var(--bg);
+      transition: transform var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+    }
+    nav a:hover, .btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--border-strong, var(--border));
+      box-shadow: var(--elev-raised);
+    }
+    .btn-primary {
+      color: var(--accent-on);
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
+      font-weight: 700;
+    }
+    .hero {
+      min-height: calc(100vh - 68px);
+      display: grid;
+      align-items: center;
+      padding: var(--section-y-tablet) 0;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+      gap: clamp(var(--space-8), 6vw, var(--section-y-tablet));
+      align-items: center;
+    }
+    .eyebrow {
+      margin: 0 0 var(--space-4);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    h1 {
+      margin: 0;
+      max-width: 11ch;
+      font-family: var(--font-display);
+      font-size: clamp(44px, 7vw, var(--text-4xl));
+      line-height: 1.04;
+      letter-spacing: var(--tracking-display);
+      text-wrap: balance;
+    }
+    .lead {
+      margin: var(--space-5) 0 0;
+      max-width: 58ch;
+      color: var(--fg-2);
+      font-size: clamp(var(--text-lg), 2vw, 19px);
+      text-wrap: pretty;
+    }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      margin-top: var(--space-8);
+    }
+    .preview-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: 0 24px 70px color-mix(in oklab, var(--fg), transparent 91%);
+    }
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 46px;
+      padding: 0 var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in oklab, var(--accent), transparent 28%);
+    }
+    .preview-body {
+      padding: var(--space-6);
+      display: grid;
+      gap: var(--space-4);
+    }
+    .screen-card {
+      display: grid;
+      gap: var(--space-4);
+      padding: var(--space-5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .screen-card h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      line-height: var(--leading-tight);
+      letter-spacing: 0;
+    }
+    .screen-card p {
+      margin: 0;
+      color: var(--muted);
+    }
+    .mini-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-4);
+      align-items: center;
+      padding: var(--space-3) 0 0;
+      border-top: 1px solid var(--border);
+      color: var(--fg-2);
+      font-size: var(--text-sm);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-pill);
+      background: color-mix(in oklab, var(--accent), transparent 90%);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: var(--text-xs);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .foot {
+      padding: var(--space-8) 0;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    @media (max-width: 920px) {
+      .shell { width: min(100% - var(--container-gutter-tablet) * 2, var(--container-max)); }
+      .hero-grid { grid-template-columns: 1fr; }
+      h1 { max-width: 12ch; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - var(--container-gutter-phone) * 2, var(--container-max)); }
+      .topnav-inner { align-items: flex-start; flex-direction: column; padding: var(--space-4) 0; }
+      nav { justify-content: flex-start; }
+      nav a, .btn { width: 100%; justify-content: center; }
+      .actions { flex-direction: column; }
+      .hero { padding: var(--section-y-phone) 0; }
+      .preview-body { padding: var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topnav" data-od-id="topnav">
+    <div class="shell topnav-inner">
+      <a class="brand" href="index.html" aria-label="RepoLens 设计稿入口">
+        <span class="mark">RL</span>
+        <span>RepoLens</span>
+      </a>
+      <nav aria-label="设计稿导航">
+        <a href="landing.html">落地页</a>
+        <a href="dashboard.html">代码库工作台</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" data-od-id="entry-hero">
+      <div class="shell hero-grid">
+        <div>
+          <p class="eyebrow">本地代码项目目录 · 高保真原型</p>
+          <h1>RepoLens 的两张核心设计稿</h1>
+          <p class="lead">基于项目设计文档生成：一张面向产品评审的响应式落地页，一张面向日常使用的本地代码库工作台。所有文案、状态和操作都围绕“扫描本地项目、快速检索、保留人工备注、一键打开工具”展开。</p>
+          <div class="actions">
+            <a class="btn btn-primary" href="dashboard.html">查看工作台</a>
+            <a class="btn" href="landing.html">查看落地页</a>
+          </div>
+        </div>
+        <div class="preview-card" aria-label="RepoLens 设计稿预览">
+          <div class="preview-toolbar">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <div class="preview-body">
+            <article class="screen-card">
+              <span class="pill">Marketing</span>
+              <h2>落地页</h2>
+              <p>讲清 RepoLens 不是 Git 替代品，而是个人电脑里的代码项目目录台账。</p>
+              <div class="mini-row">
+                <span>包含 hero、价值点、扫描流程、版本边界和 CTA</span>
+                <a href="landing.html">打开</a>
+              </div>
+            </article>
+            <article class="screen-card">
+              <span class="pill">Product</span>
+              <h2>代码库工作台</h2>
+              <p>展示搜索筛选、项目表、扫描源、详情编辑、一键打开外部工具等首版核心体验。</p>
+              <div class="mini-row">
+                <span>包含筛选、选择、复制路径和扫描反馈交互</span>
+                <a href="dashboard.html">打开</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot" data-od-id="footer">
+    <div class="shell">RepoLens · 本地优先的个人代码项目目录</div>
+  </footer>
+</body>
+</html>
