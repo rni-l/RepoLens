@@ -4,6 +4,7 @@ import { ProjectDetailPanel } from "../components/ProjectDetailPanel";
 import { ProjectSearchBar, type FilterKey, type TagFilterMode } from "../components/ProjectSearchBar";
 import { ProjectTable } from "../components/ProjectTable";
 import { TagTreeSelector } from "../components/TagTreeSelector";
+import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { pruneSelectedTagIds } from "../lib/tagState";
 import { api } from "../lib/tauri";
 import type {
@@ -491,6 +492,7 @@ function AppShell({ activeRoute, onNavigate, children }: AppShellProps) {
             </a>
           ))}
         </nav>
+        <ThemeSwitcher />
         <p className="sidebar-foot">{SIDEBAR_FOOT[activeRoute]}</p>
       </aside>
 

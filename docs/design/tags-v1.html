@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RepoLens · 标签管理 V1</title>
   <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="stylesheet" href="assets/theme.css" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("repolens.theme.mode");
+        var mode = stored === "dark" ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+        document.documentElement.dataset.theme = mode;
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <style>
     :root {
       --bg: #ffffff;
@@ -775,5 +788,6 @@
     syncEditor();
     renderProjects();
   </script>
+  <script src="assets/theme.js"></script>
 </body>
 </html>

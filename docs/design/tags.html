@@ -5,8 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RepoLens · 层级标签工作台</title>
   <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="stylesheet" href="assets/theme.css" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/repolens-app-icon-32.png" />
   <link rel="apple-touch-icon" href="assets/brand/repolens-app-icon-256.png" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("repolens.theme.mode");
+        var mode = stored === "dark" ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+        document.documentElement.dataset.theme = mode;
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <style>
     :root {
       --bg: #ffffff;
@@ -1322,5 +1335,6 @@ existingTags: 业务域/水健康, 项目类型/CLI 工具, 维护状态/高频�
     tagPickerSearchInput.addEventListener("input", renderDetail);
     renderAll();
   </script>
+  <script src="assets/theme.js"></script>
 </body>
 </html>

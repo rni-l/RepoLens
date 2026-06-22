@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RepoLens · 项目库工作台 V1</title>
   <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="stylesheet" href="assets/theme.css" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("repolens.theme.mode");
+        var mode = stored === "dark" ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+        document.documentElement.dataset.theme = mode;
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <style>
     :root {
       --bg: #ffffff;
@@ -972,5 +985,6 @@
     document.querySelector("#suggest-tags").addEventListener("click", () => showToast("已生成标签建议，可前往标签页确认层级位置"));
     renderRows();
   </script>
+  <script src="assets/theme.js"></script>
 </body>
 </html>

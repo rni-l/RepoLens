@@ -5,8 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RepoLens 设计稿入口</title>
   <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <link rel="stylesheet" href="assets/theme.css" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/repolens-app-icon-32.png" />
   <link rel="apple-touch-icon" href="assets/brand/repolens-app-icon-256.png" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("repolens.theme.mode");
+        var mode = stored === "dark" ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+        document.documentElement.dataset.theme = mode;
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
   <style>
     :root {
       --bg: #ffffff;
@@ -348,5 +361,6 @@
   <footer class="foot" data-od-id="footer">
     <div class="shell">RepoLens · 本地优先的个人代码项目目录</div>
   </footer>
+  <script src="assets/theme.js"></script>
 </body>
 </html>
