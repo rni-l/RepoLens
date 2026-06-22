@@ -155,12 +155,11 @@ export function ProjectLibraryPage() {
     setSelectedProject(await api.getProject(projectId));
   }
 
-  function toggleProjectSelection(projectId: string) {
+  function toggleProjectSelection(projectId: string, checked: boolean) {
     setSelectedProjectIds((current) =>
-      current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId]
+      checked ? Array.from(new Set([...current, projectId])) : current.filter((id) => id !== projectId)
     );
     setSelectedProject(null);
-    setIsBulkTagDrawerOpen(true);
   }
 
   function toggleAllVisibleProjects() {
@@ -173,7 +172,9 @@ export function ProjectLibraryPage() {
       return Array.from(new Set([...current, ...visibleIds]));
     });
     setSelectedProject(null);
-    setIsBulkTagDrawerOpen(!allVisibleSelected && visibleIds.length > 0);
+    if (allVisibleSelected || visibleIds.length === 0) {
+      setIsBulkTagDrawerOpen(false);
+    }
   }
 
   async function applyBulkTags() {
@@ -527,7 +528,7 @@ type LibraryViewProps = {
   onCloseBulkTagDrawer(): void;
   onClearBulkSelection(): void;
   onSelectProject(projectId: string): void;
-  onToggleProject(projectId: string): void;
+  onToggleProject(projectId: string, checked: boolean): void;
   onToggleAll(): void;
   onOpenProject(projectId: string, action: OpenAction): void;
   onCloseDrawer(): void;

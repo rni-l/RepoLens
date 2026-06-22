@@ -1,7 +1,21 @@
 import { useEffect, useRef } from "react";
-import type { OpenAction, OpenActionAvailability, ProjectListItem } from "../lib/types";
+import type {
+  OpenAction,
+  OpenActionAvailability,
+  ProjectListItem,
+} from "../lib/types";
 import { ProjectRowActions } from "./ProjectRowActions";
 import { StatusBadge } from "./StatusBadge";
+
+const INTERACTIVE_ROW_TARGET_SELECTOR = [
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "a",
+  "[role='button']",
+  "[data-row-interactive='true']"
+].join(",");
 
 type Props = {
   projects: ProjectListItem[];
@@ -9,7 +23,7 @@ type Props = {
   selectedProjectIds: string[];
   openActions: OpenActionAvailability[];
   onSelect(projectId: string): void;
-  onToggleProject(projectId: string): void;
+  onToggleProject(projectId: string, checked: boolean): void;
   onToggleAll(): void;
   onOpen(projectId: string, action: OpenAction): void;
 };
@@ -22,11 +36,14 @@ export function ProjectTable({
   onSelect,
   onToggleProject,
   onToggleAll,
-  onOpen
+  onOpen,
 }: Props) {
   const selected = new Set(selectedProjectIds);
-  const allVisibleSelected = projects.length > 0 && projects.every((project) => selected.has(project.id));
-  const hasPartialSelection = selectedProjectIds.length > 0 && !allVisibleSelected;
+  const allVisibleSelected =
+    projects.length > 0 &&
+    projects.every((project) => selected.has(project.id));
+  const hasPartialSelection =
+    selectedProjectIds.length > 0 && !allVisibleSelected;
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,7 +53,11 @@ export function ProjectTable({
   }, [hasPartialSelection]);
 
   return (
-    <section className="table-card" data-od-id="project-library" aria-label="项目列表">
+    <section
+      className="table-card"
+      data-od-id="project-library"
+      aria-label="项目列表"
+    >
       {projects.length === 0 ? (
         <div className="empty-state">
           <strong>还没有匹配的项目</strong>
@@ -69,8 +90,16 @@ export function ProjectTable({
                 className={`${project.id === activeProjectId || selected.has(project.id) ? "is-selected" : ""}`}
                 tabIndex={0}
                 key={project.id}
-                onClick={() => onSelect(project.id)}
+                onClick={(event) => {
+                  if (isInteractiveRowTarget(event.target)) {
+                    return;
+                  }
+                  onSelect(project.id);
+                }}
                 onKeyDown={(event) => {
+                  if (isInteractiveRowTarget(event.target)) {
+                    return;
+                  }
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(project.id);
@@ -79,38 +108,88 @@ export function ProjectTable({
               >
                 <td
                   className="col-check"
-                  onClick={(event) => event.stopPropagation()}
+                  data-row-interactive="true"
+                  onMouseDown={(event) => {
+                    event.nativeEvent.stopImmediatePropagation();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.nativeEvent.stopImmediatePropagation();
+                    event.stopPropagation();
+                    onToggleProject(project.id, !selected.has(project.id));
+                  }}
+                  onDoubleClick={(event) => {
+                    event.nativeEvent.stopImmediatePropagation();
+                    event.stopPropagation();
+                  }}
                   onKeyDown={(event) => event.stopPropagation()}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(project.id)}
-                    aria-label={`选择 ${project.name}`}
-                    onChange={() => onToggleProject(project.id)}
-                  />
+                  <label
+                    className="row-check"
+                    data-row-interactive="true"
+                    onMouseDown={(event) => {
+                      event.nativeEvent.stopImmediatePropagation();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.nativeEvent.stopImmediatePropagation();
+                      event.stopPropagation();
+                    }}
+                    onDoubleClick={(event) => {
+                      event.nativeEvent.stopImmediatePropagation();
+                      event.stopPropagation();
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(project.id)}
+                      aria-label={`选择 ${project.name}`}
+                      onClick={(event) => {
+                        event.nativeEvent.stopImmediatePropagation();
+                        event.stopPropagation();
+                      }}
+                      onChange={(event) => onToggleProject(project.id, event.currentTarget.checked)}
+                    />
+                  </label>
                 </td>
                 <td className="col-project">
                   <span className="project-cell">
-                    <strong className="project-name">{project.favorite ? "★ " : ""}{project.name}</strong>
+                    <strong className="project-name">
+                      {project.favorite ? "★ " : ""}
+                      {project.name}
+                    </strong>
                     <span className="path">{project.path}</span>
                     <span className="mobile-meta">
-                      文件夹创建 {formatDateTime(project.createdAt)} · 更新 {formatDateTime(project.updatedAt)}
+                      文件夹创建 {formatDateTime(project.createdAt)} · 更新{" "}
+                      {formatDateTime(project.updatedAt)}
                     </span>
                   </span>
                 </td>
                 <td className="col-tags">
                   <span className="tags">
                     {project.tags.slice(0, 4).map((tag) => (
-                      <span className="tag" key={tag.id} title={tag.path}>{tag.name}</span>
+                      <span className="tag" key={tag.id} title={tag.path}>
+                        {tag.name}
+                      </span>
                     ))}
-                    {project.tags.length === 0 && project.techStacks.slice(0, 3).map((stack) => (
-                      <span className="tag tag-muted" key={stack}>{stack}</span>
-                    ))}
+                    {project.tags.length === 0 &&
+                      project.techStacks.slice(0, 3).map((stack) => (
+                        <span className="tag tag-muted" key={stack}>
+                          {stack}
+                        </span>
+                      ))}
                   </span>
                 </td>
-                <td className="col-status"><StatusBadge status={project.status} /></td>
-                <td className="col-time mono" title="真实文件夹创建时间">{formatDateTime(project.createdAt)}</td>
-                <td className="col-time mono">{formatDateTime(project.updatedAt)}</td>
+                <td className="col-status">
+                  <StatusBadge status={project.status} />
+                </td>
+                <td className="col-time mono" title="真实文件夹创建时间">
+                  {formatDateTime(project.createdAt)}
+                </td>
+                <td className="col-time mono">
+                  {formatDateTime(project.updatedAt)}
+                </td>
                 <td className="col-open">
                   <ProjectRowActions
                     availability={openActions}
@@ -125,6 +204,10 @@ export function ProjectTable({
       )}
     </section>
   );
+}
+
+function isInteractiveRowTarget(target: EventTarget): boolean {
+  return target instanceof Element && Boolean(target.closest(INTERACTIVE_ROW_TARGET_SELECTOR));
 }
 
 function formatDateTime(value: string | null): string {
