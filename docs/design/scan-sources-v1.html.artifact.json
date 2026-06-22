@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "scan-sources-v1.html",
+  "entry": "scan-sources-v1.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-22T02:05:53.559Z",
+  "updatedAt": "2026-06-22T02:05:53.559Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

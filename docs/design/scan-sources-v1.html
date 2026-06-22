@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RepoLens · 扫描源 V1</title>
+  <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f5f7;
+      --surface-warm: var(--surface);
+      --fg: #0e1318;
+      --fg-2: #3c4043;
+      --muted: #5f6368;
+      --meta: #9aa0a6;
+      --border: #e1e3e6;
+      --border-soft: var(--border);
+      --accent: #7d2ae8;
+      --accent-on: #ffffff;
+      --accent-hover: #6815d4;
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #00b894;
+      --warn: #ffb020;
+      --danger: #ff5757;
+      --font-display: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-body: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --text-xs: 11px;
+      --text-sm: 12px;
+      --text-base: 14px;
+      --text-lg: 16px;
+      --text-xl: 18px;
+      --text-2xl: 24px;
+      --text-3xl: 36px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.15;
+      --tracking-display: -0.02em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 96px;
+      --section-y-tablet: 64px;
+      --section-y-phone: 48px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --focus-ring: 0 0 0 3px rgba(125, 42, 232, 0.16);
+      --motion-fast: 180ms;
+      --motion-base: 280ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --container-max: 1320px;
+      --container-gutter-desktop: 32px;
+      --container-gutter-tablet: 24px;
+      --container-gutter-phone: 16px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--surface);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; text-wrap: balance; }
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: var(--space-5) var(--space-4);
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+    .brand { display: inline-flex; align-items: center; gap: var(--space-3); min-height: 40px; font-weight: 800; }
+    .mark { width: 34px; height: 34px; border-radius: var(--radius-md); box-shadow: 0 8px 22px color-mix(in oklab, var(--accent), transparent 72%); }
+    .nav-list { display: grid; gap: var(--space-2); }
+    .nav-item {
+      min-height: 40px;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-sm);
+      color: var(--fg-2);
+      font-weight: 700;
+    }
+    .nav-item:hover, .nav-item[aria-current="page"] { color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 91%); }
+    .nav-ico {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .sidebar-foot {
+      margin-top: auto;
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .workspace { min-width: 0; padding: var(--space-6); display: grid; gap: var(--space-5); }
+    .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; }
+    .title-block h1 { font-size: clamp(var(--text-2xl), 3vw, var(--text-3xl)); line-height: var(--leading-tight); }
+    .title-block p { margin-top: var(--space-2); color: var(--muted); max-width: 760px; }
+    .actions, .row-actions, .form-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+    .actions { justify-content: flex-end; }
+    .btn, .icon-btn {
+      min-height: 38px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--fg);
+      font-weight: 700;
+      transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+    }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-4); }
+    .btn:hover, .icon-btn:hover { transform: translateY(-1px); box-shadow: var(--elev-raised); border-color: color-mix(in oklab, var(--border), var(--fg) 18%); }
+    .btn-primary { border-color: transparent; color: var(--accent-on); background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%)); }
+    .btn-danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger), transparent 62%); background: color-mix(in oklab, var(--danger), transparent 93%); }
+    .icon-btn { width: 36px; padding: 0; display: grid; place-items: center; }
+    .panel, .metric, .dialog, .toast {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+    .metric { padding: var(--space-4); }
+    .metric span { color: var(--muted); font-size: var(--text-sm); }
+    .metric strong { display: block; margin-top: var(--space-1); font-family: var(--font-mono); font-size: var(--text-2xl); line-height: 1.1; }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .panel-head h2 { font-size: var(--text-xl); line-height: 1.2; }
+    .panel-body { padding: var(--space-4); display: grid; gap: var(--space-4); }
+    .form-row { align-items: stretch; }
+    .input {
+      flex: 1 1 320px;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--fg);
+      padding: 0 var(--space-3);
+      outline: 0;
+      font-family: var(--font-mono);
+      min-width: 0;
+    }
+    .input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .source-list { display: grid; gap: var(--space-3); }
+    .source-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-4);
+      align-items: center;
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .source-main { min-width: 0; display: grid; gap: var(--space-2); }
+    .source-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-sm); }
+    .meta { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); }
+    .status {
+      min-height: 26px;
+      display: inline-flex;
+      align-items: center;
+      width: max-content;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-pill);
+      background: color-mix(in oklab, var(--success), transparent 88%);
+      color: color-mix(in oklab, var(--success), var(--fg) 24%);
+      font-size: var(--text-xs);
+      font-weight: 900;
+    }
+    .status.off { background: var(--surface); color: var(--muted); }
+    .switch {
+      width: 44px;
+      height: 26px;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: var(--accent);
+      position: relative;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: var(--space-1);
+      right: var(--space-1);
+      width: 18px;
+      height: 18px;
+      border-radius: var(--radius-pill);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .switch.is-off { background: var(--border); }
+    .switch.is-off::after { right: 22px; }
+    .dialog-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      place-items: center;
+      padding: var(--space-4);
+      background: color-mix(in oklab, var(--fg), transparent 72%);
+    }
+    .dialog-layer.open { display: grid; }
+    .dialog { width: min(480px, 100%); padding: var(--space-5); display: grid; gap: var(--space-4); }
+    .toast {
+      position: fixed;
+      right: var(--space-6);
+      bottom: var(--space-6);
+      z-index: 50;
+      max-width: 360px;
+      padding: var(--space-4);
+      color: var(--fg-2);
+      transform: translateY(16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--motion-base) var(--ease-standard), opacity var(--motion-base) var(--ease-standard);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1180px) {
+      .app-shell { grid-template-columns: 72px minmax(0, 1fr); }
+      .sidebar { align-items: center; padding: var(--space-4); }
+      .brand span, .nav-item span:last-child, .sidebar-foot { display: none; }
+      .nav-item { width: 42px; grid-template-columns: 1fr; place-items: center; padding: 0; }
+    }
+    @media (max-width: 980px) {
+      .topbar { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .source-row { grid-template-columns: 1fr; }
+      .row-actions { justify-content: flex-start; }
+    }
+    @media (max-width: 720px) {
+      .app-shell { display: block; }
+      .sidebar {
+        position: sticky;
+        z-index: 20;
+        top: 0;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-between;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand span { display: inline; }
+      .nav-list { grid-auto-flow: column; overflow-x: auto; max-width: 64vw; }
+      .workspace { padding: var(--space-4); }
+    }
+    @media (max-width: 430px) {
+      .workspace, .panel-body, .panel-head, .metric { padding: var(--space-3); }
+      .actions, .form-row, .row-actions { align-items: stretch; flex-direction: column; }
+      .btn { width: 100%; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .toast { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="dashboard-v1.html" aria-label="RepoLens 项目库工作台">
+        <img class="mark" src="assets/brand/repolens-mark.svg" alt="" width="34" height="34" />
+        <span>RepoLens</span>
+      </a>
+      <nav class="nav-list" aria-label="主导航">
+        <a class="nav-item" href="dashboard-v1.html"><span class="nav-ico">库</span><span>项目库</span></a>
+        <a class="nav-item" href="tags-v1.html"><span class="nav-ico">签</span><span>标签</span></a>
+        <a class="nav-item" aria-current="page" href="scan-sources-v1.html"><span class="nav-ico">扫</span><span>扫描源</span></a>
+        <a class="nav-item" href="settings-v1.html"><span class="nav-ico">设</span><span>设置</span></a>
+      </nav>
+      <p class="sidebar-foot">扫描源从项目库右栏移出，支持添加、启停、单扫和移除确认。</p>
+    </aside>
+
+    <main class="workspace">
+      <section class="topbar">
+        <div class="title-block">
+          <h1>扫描源</h1>
+          <p>管理本地代码扫描根目录，启用后参与扫描全部；单个目录可即时扫描，移除前需要二次确认。</p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="dashboard-v1.html">返回项目库</a>
+          <button class="btn btn-primary" type="button" id="scan-all">扫描全部</button>
+        </div>
+      </section>
+
+      <section class="summary-grid" aria-label="扫描源统计">
+        <article class="metric"><span>扫描源</span><strong id="source-count">3</strong></article>
+        <article class="metric"><span>启用</span><strong id="enabled-count">2</strong></article>
+        <article class="metric"><span>索引项目</span><strong>5</strong></article>
+        <article class="metric"><span>缺失路径</span><strong>1</strong></article>
+      </section>
+
+      <section class="panel" data-od-id="scan-source-form">
+        <div class="panel-head">
+          <h2>添加扫描源</h2>
+          <span class="status">内联表单</span>
+        </div>
+        <div class="panel-body">
+          <form class="form-row" id="source-form">
+            <input class="input" id="source-path" placeholder="/Users/ddd/Documents 或 /Users/ddd/D/feiyu" aria-label="扫描源路径" />
+            <button class="btn btn-primary" type="submit">添加并启用</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel" data-od-id="scan-source-list">
+        <div class="panel-head">
+          <h2>扫描源列表</h2>
+          <span class="status" id="scan-state">空闲</span>
+        </div>
+        <div class="panel-body">
+          <div class="source-list" id="source-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="dialog-layer" id="confirm-layer" aria-hidden="true">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">移除扫描源</h2>
+      <p id="confirm-copy">移除后不会删除本地文件，只会停止后续扫描并保留已有项目记录。</p>
+      <div class="row-actions">
+        <button class="btn" type="button" id="cancel-remove">取消</button>
+        <button class="btn btn-danger" type="button" id="confirm-remove">确认移除</button>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite">已完成</div>
+
+  <script>
+    const sources = [
+      { id: "docs", path: "/Users/ddd/Documents", enabled: true, last: "2026-06-22 10:42", projects: 2 },
+      { id: "feiyu", path: "/Users/ddd/D/feiyu", enabled: true, last: "2026-06-22 10:44", projects: 2 },
+      { id: "archive", path: "/Users/ddd/Archive", enabled: false, last: "2026-06-09 13:27", projects: 1 }
+    ];
+    const list = document.querySelector("#source-list");
+    const toast = document.querySelector("#toast");
+    const confirmLayer = document.querySelector("#confirm-layer");
+    let pendingRemoveId = null;
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function syncStats() {
+      document.querySelector("#source-count").textContent = String(sources.length);
+      document.querySelector("#enabled-count").textContent = String(sources.filter((source) => source.enabled).length);
+    }
+
+    function renderSources() {
+      list.innerHTML = sources.map((source) => `
+        <article class="source-row" data-id="${source.id}">
+          <div class="source-main">
+            <strong>${source.path}</strong>
+            <span class="meta">上次扫描 ${source.last} · ${source.projects} 个项目</span>
+            <span class="status ${source.enabled ? "" : "off"}">${source.enabled ? "已启用" : "已停用"}</span>
+          </div>
+          <div class="row-actions">
+            <button class="switch ${source.enabled ? "" : "is-off"}" type="button" aria-label="${source.enabled ? "停用" : "启用"} ${source.path}" data-toggle></button>
+            <button class="btn" type="button" data-scan>扫描</button>
+            <button class="btn btn-danger" type="button" data-remove>移除</button>
+          </div>
+        </article>
+      `).join("");
+      document.querySelectorAll("[data-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const source = sources.find((item) => item.id === button.closest(".source-row").dataset.id);
+          source.enabled = !source.enabled;
+          renderSources();
+          showToast(`${source.path} 已${source.enabled ? "启用" : "停用"}`);
+        });
+      });
+      document.querySelectorAll("[data-scan]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const source = sources.find((item) => item.id === button.closest(".source-row").dataset.id);
+          document.querySelector("#scan-state").textContent = "扫描中";
+          showToast(`正在扫描 ${source.path}`);
+          window.setTimeout(() => {
+            source.last = "2026-06-22 16:28";
+            document.querySelector("#scan-state").textContent = "空闲";
+            renderSources();
+            showToast("单个扫描源已完成");
+          }, 700);
+        });
+      });
+      document.querySelectorAll("[data-remove]").forEach((button) => {
+        button.addEventListener("click", () => {
+          pendingRemoveId = button.closest(".source-row").dataset.id;
+          confirmLayer.classList.add("open");
+          confirmLayer.setAttribute("aria-hidden", "false");
+        });
+      });
+      syncStats();
+    }
+
+    document.querySelector("#source-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = document.querySelector("#source-path");
+      const value = input.value.trim();
+      if (!value) {
+        showToast("请输入扫描源路径");
+        return;
+      }
+      sources.unshift({ id: `source-${Date.now()}`, path: value, enabled: true, last: "尚未扫描", projects: 0 });
+      input.value = "";
+      renderSources();
+      showToast("扫描源已添加并启用");
+    });
+    document.querySelector("#scan-all").addEventListener("click", () => {
+      document.querySelector("#scan-state").textContent = "扫描中";
+      showToast("已开始扫描全部启用扫描源");
+      window.setTimeout(() => {
+        document.querySelector("#scan-state").textContent = "空闲";
+        showToast("扫描全部已完成");
+      }, 900);
+    });
+    document.querySelector("#cancel-remove").addEventListener("click", () => {
+      pendingRemoveId = null;
+      confirmLayer.classList.remove("open");
+      confirmLayer.setAttribute("aria-hidden", "true");
+    });
+    document.querySelector("#confirm-remove").addEventListener("click", () => {
+      const index = sources.findIndex((source) => source.id === pendingRemoveId);
+      if (index >= 0) sources.splice(index, 1);
+      pendingRemoveId = null;
+      confirmLayer.classList.remove("open");
+      confirmLayer.setAttribute("aria-hidden", "true");
+      renderSources();
+      showToast("扫描源已移除");
+    });
+    confirmLayer.addEventListener("click", (event) => {
+      if (event.target === confirmLayer) document.querySelector("#cancel-remove").click();
+    });
+    renderSources();
+  </script>
+</body>
+</html>

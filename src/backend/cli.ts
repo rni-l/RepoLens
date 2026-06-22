@@ -28,6 +28,8 @@ async function dispatch(request: CliRequest): Promise<unknown> {
       return service.getProject(String(args.projectId));
     case "update_project":
       return service.updateProject(String(args.projectId), (args.patch ?? {}) as never);
+    case "bulk_tag_projects":
+      return service.bulkTagProjects((args.input ?? {}) as never);
     case "add_manual_project":
       return service.addManualProject(String(args.path));
     case "delete_project":

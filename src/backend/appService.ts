@@ -3,6 +3,8 @@ import type {
   AiTaggingStatus,
   ApplyTagSuggestionsInput,
   AppApi,
+  BulkTagProjectsInput,
+  BulkTagProjectsResult,
   GenerateTagSuggestionsInput,
   GenerateTagSuggestionsResult,
   OpenAction,
@@ -57,6 +59,10 @@ export class RepoLensService implements AppApi {
 
   async updateProject(projectId: string, patch: ProjectUpdatePatch): Promise<ProjectDetail> {
     return this.database.updateProject(projectId, patch);
+  }
+
+  async bulkTagProjects(input: BulkTagProjectsInput): Promise<BulkTagProjectsResult> {
+    return this.database.bulkTagProjects(input);
   }
 
   async addManualProject(projectPathInput: string): Promise<ProjectDetail> {

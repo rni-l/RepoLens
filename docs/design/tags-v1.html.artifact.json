@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "tags-v1.html",
+  "entry": "tags-v1.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-22T02:08:31.388Z",
+  "updatedAt": "2026-06-22T02:08:31.388Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

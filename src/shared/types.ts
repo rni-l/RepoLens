@@ -104,6 +104,8 @@ export type ProjectListItem = {
   lastModifiedAt: string | null;
   source: ProjectSource;
   favorite: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ProjectDetail = ProjectListItem & {
@@ -147,6 +149,18 @@ export type ProjectUpdatePatch = {
   testCommand?: string | null;
 };
 
+export type BulkTagProjectsInput = {
+  projectIds: string[];
+  tagIds: string[];
+  mode: "append";
+};
+
+export type BulkTagProjectsResult = {
+  updatedCount: number;
+  updatedProjects: ProjectListItem[];
+  updatedAt: string;
+};
+
 export type ScanRootUpdatePatch = {
   path?: string;
   enabled?: boolean;
@@ -183,6 +197,7 @@ export type AppApi = {
   listProjects(filters?: ProjectFilters): Promise<ProjectListItem[]>;
   getProject(projectId: string): Promise<ProjectDetail>;
   updateProject(projectId: string, patch: ProjectUpdatePatch): Promise<ProjectDetail>;
+  bulkTagProjects(input: BulkTagProjectsInput): Promise<BulkTagProjectsResult>;
   addManualProject(path: string): Promise<ProjectDetail>;
   deleteProject(projectId: string): Promise<void>;
   listTags(): Promise<TagNode[]>;

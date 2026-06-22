@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
+  BulkTagProjectsInput,
+  BulkTagProjectsResult,
   FieldSource,
   ProjectDetail,
   ProjectFilters,
@@ -351,6 +353,61 @@ export class RepoLensDatabase {
     return this.getProject(projectId);
   }
 
+  bulkTagProjects(input: BulkTagProjectsInput): BulkTagProjectsResult {
+    if (input.mode !== "append") {
+      throw new RepoLensError("bulk_tag_mode_unsupported", "Only append mode is supported.");
+    }
+
+    const projectIds = Array.from(new Set(input.projectIds.map((id) => id.trim()).filter(Boolean)));
+    const tagIds = Array.from(new Set(input.tagIds.map((id) => id.trim()).filter(Boolean)));
+    if (!projectIds.length) {
+      throw new RepoLensError("bulk_project_required", "Select at least one project.");
+    }
+    if (!tagIds.length) {
+      throw new RepoLensError("bulk_tag_required", "Select at least one tag.");
+    }
+
+    const projectRows = this.db
+      .prepare(`SELECT id FROM projects WHERE id IN (${projectIds.map(() => "?").join(", ")})`)
+      .all(...projectIds) as Array<{ id: string }>;
+    const foundProjects = new Set(projectRows.map((row) => row.id));
+    const missingProject = projectIds.find((id) => !foundProjects.has(id));
+    if (missingProject) {
+      throw new RepoLensError("project_not_found", "One or more projects were not found.");
+    }
+
+    const tagRows = this.db
+      .prepare(`SELECT id FROM tags WHERE id IN (${tagIds.map(() => "?").join(", ")})`)
+      .all(...tagIds) as Array<{ id: string }>;
+    const foundTags = new Set(tagRows.map((row) => row.id));
+    const missingTag = tagIds.find((id) => !foundTags.has(id));
+    if (missingTag) {
+      throw new RepoLensError("tag_not_found", "One or more tags were not found.");
+    }
+
+    const updatedAt = new Date().toISOString();
+    this.db.exec("BEGIN");
+    try {
+      const insert = this.db.prepare("INSERT OR IGNORE INTO project_tag_links (project_id, tag_id) VALUES (?, ?)");
+      for (const projectId of projectIds) {
+        for (const tagId of tagIds) {
+          insert.run(projectId, tagId);
+        }
+        this.db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(updatedAt, projectId);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
+
+    return {
+      updatedCount: projectIds.length,
+      updatedProjects: projectIds.map((projectId) => this.getProject(projectId)),
+      updatedAt
+    };
+  }
+
   deleteProject(projectId: string): void {
     this.db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
   }
@@ -645,7 +702,9 @@ function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListIte
     tags,
     lastModifiedAt: row.last_modified_at,
     source: row.source,
-    favorite: Boolean(row.favorite)
+    favorite: Boolean(row.favorite),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 

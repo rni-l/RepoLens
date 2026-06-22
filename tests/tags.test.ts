@@ -92,6 +92,63 @@ test("updates projects with structured tag links and rejects unknown tag ids", a
   database.close();
 });
 
+test("project list items include index timestamps", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-project-timestamps-"));
+  const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
+  const project = database.upsertProject(projectInput(path.join(tempDir, "app"), "demo-app")).project;
+
+  const listed = database.listProjects().find((item) => item.id === project.id);
+  assert.ok(listed?.createdAt);
+  assert.ok(listed?.updatedAt);
+  database.close();
+});
+
+test("bulk appends tags to multiple projects without replacing existing tags", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-bulk-tags-"));
+  const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
+  const first = database.upsertProject(projectInput(path.join(tempDir, "first"), "first-app")).project;
+  const second = database.upsertProject(projectInput(path.join(tempDir, "second"), "second-app")).project;
+  const existing = database.createTag({ name: "已有标签" });
+  const root = database.createTag({ name: "项目类型" });
+  const cli = database.createTag({ name: "CLI 工具", parentId: root.id });
+
+  database.updateProject(first.id, { tagIds: [existing.id] });
+  const result = database.bulkTagProjects({
+    projectIds: [first.id, second.id, first.id],
+    tagIds: [cli.id, cli.id],
+    mode: "append"
+  });
+
+  assert.equal(result.updatedCount, 2);
+  assert.deepEqual(database.getProject(first.id).tags.map((tag) => tag.path), ["已有标签", "项目类型/CLI 工具"]);
+  assert.deepEqual(database.getProject(second.id).tags.map((tag) => tag.path), ["项目类型/CLI 工具"]);
+  assert.equal(database.getProject(first.id).updatedAt, result.updatedAt);
+  database.close();
+});
+
+test("bulk tag validation fails before writing any links", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-bulk-tags-rollback-"));
+  const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
+  const project = database.upsertProject(projectInput(path.join(tempDir, "app"), "demo-app")).project;
+  const tag = database.createTag({ name: "安全标签" });
+
+  assert.throws(
+    () => database.bulkTagProjects({ projectIds: [project.id], tagIds: ["tag_missing"], mode: "append" }),
+    (error: unknown) => error instanceof RepoLensError && error.code === "tag_not_found"
+  );
+  assert.deepEqual(database.getProject(project.id).tags, []);
+
+  assert.throws(
+    () => database.bulkTagProjects({ projectIds: [], tagIds: [tag.id], mode: "append" }),
+    (error: unknown) => error instanceof RepoLensError && error.code === "bulk_project_required"
+  );
+  assert.throws(
+    () => database.bulkTagProjects({ projectIds: [project.id], tagIds: [], mode: "append" }),
+    (error: unknown) => error instanceof RepoLensError && error.code === "bulk_tag_required"
+  );
+  database.close();
+});
+
 test("tag filters include descendant assignments and query search matches tag paths", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-tags-filter-"));
   const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));

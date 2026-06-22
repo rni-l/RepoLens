@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RepoLens · 标签管理 V1</title>
+  <link rel="icon" type="image/svg+xml" href="assets/brand/repolens-mark.svg" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f4f5f7;
+      --surface-warm: var(--surface);
+      --fg: #0e1318;
+      --fg-2: #3c4043;
+      --muted: #5f6368;
+      --meta: #9aa0a6;
+      --border: #e1e3e6;
+      --border-soft: var(--border);
+      --accent: #7d2ae8;
+      --accent-on: #ffffff;
+      --accent-hover: #6815d4;
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #00b894;
+      --warn: #ffb020;
+      --danger: #ff5757;
+      --font-display: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-body: "Canva Sans", "YS Text", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --text-xs: 11px;
+      --text-sm: 12px;
+      --text-base: 14px;
+      --text-lg: 16px;
+      --text-xl: 18px;
+      --text-2xl: 24px;
+      --text-3xl: 36px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.15;
+      --tracking-display: -0.02em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 96px;
+      --section-y-tablet: 64px;
+      --section-y-phone: 48px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --focus-ring: 0 0 0 3px rgba(125, 42, 232, 0.16);
+      --motion-fast: 180ms;
+      --motion-base: 280ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --container-max: 1320px;
+      --container-gutter-desktop: 32px;
+      --container-gutter-tablet: 24px;
+      --container-gutter-phone: 16px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--surface);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; text-wrap: balance; }
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 208px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: var(--space-5) var(--space-4);
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+    .brand { display: inline-flex; align-items: center; gap: var(--space-3); min-height: 40px; font-weight: 800; }
+    .mark { width: 34px; height: 34px; border-radius: var(--radius-md); box-shadow: 0 8px 22px color-mix(in oklab, var(--accent), transparent 72%); }
+    .nav-list { display: grid; gap: var(--space-2); }
+    .nav-item {
+      min-height: 40px;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-sm);
+      color: var(--fg-2);
+      font-weight: 700;
+    }
+    .nav-item:hover, .nav-item[aria-current="page"] { color: var(--accent); background: color-mix(in oklab, var(--accent), transparent 91%); }
+    .nav-ico {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .sidebar-foot {
+      margin-top: auto;
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .workspace { min-width: 0; padding: var(--space-6); display: grid; gap: var(--space-5); }
+    .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; }
+    .title-block h1 { font-size: clamp(var(--text-2xl), 3vw, var(--text-3xl)); line-height: var(--leading-tight); }
+    .title-block p { margin-top: var(--space-2); color: var(--muted); max-width: 760px; }
+    .actions, .chip-row, .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+    .actions { justify-content: flex-end; }
+    .btn, .icon-btn {
+      min-height: 38px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--fg);
+      font-weight: 700;
+      transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+    }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-4); }
+    .btn:hover:not(:disabled), .icon-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--elev-raised); border-color: color-mix(in oklab, var(--border), var(--fg) 18%); }
+    .btn:disabled, .icon-btn:disabled { opacity: 0.48; background: var(--surface); color: var(--meta); }
+    .btn:focus-visible, .icon-btn:focus-visible, .nav-item:focus-visible, .tree-node:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+    .btn-primary { border-color: transparent; color: var(--accent-on); background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%)); }
+    .btn-subtle { color: var(--accent); border-color: color-mix(in oklab, var(--accent), transparent 62%); background: color-mix(in oklab, var(--accent), transparent 92%); }
+    .btn-danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger), transparent 62%); background: color-mix(in oklab, var(--danger), transparent 93%); }
+    .icon-btn { width: 36px; padding: 0; display: grid; place-items: center; }
+    .panel, .tag-tree, .toast {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .layout { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .panel-head h2 { font-size: var(--text-xl); line-height: 1.2; }
+    .panel-body { padding: var(--space-4); display: grid; gap: var(--space-4); }
+    .section-note, .field-help, .state-line {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .state-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      min-height: 28px;
+    }
+    .state-line span:last-child { margin-left: auto; text-align: right; }
+    .search-box {
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      align-items: center;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+    .search-box input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); }
+    .search-box:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); background: var(--bg); }
+    .tag-tree { overflow: hidden; }
+    .tree-list, .project-list { display: grid; gap: var(--space-2); }
+    .tree-node {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      gap: var(--space-2);
+      align-items: center;
+      min-height: 40px;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      color: var(--fg);
+      text-align: left;
+      width: 100%;
+    }
+    .tree-node[data-depth="1"] { margin-left: var(--space-6); }
+    .tree-node[data-depth="2"] { margin-left: var(--space-12); }
+    .tree-node.is-active { border-color: color-mix(in oklab, var(--accent), transparent 52%); background: color-mix(in oklab, var(--accent), transparent 93%); }
+    .tree-node strong { font-size: var(--text-sm); }
+    .node-mark {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-pill);
+      background: var(--border);
+    }
+    .tree-node.is-active .node-mark { background: var(--accent); }
+    .node-main { min-width: 0; display: grid; gap: 1px; }
+    .node-main small {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: var(--text-xs);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .count {
+      min-width: 28px;
+      min-height: 22px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .field { display: grid; gap: var(--space-2); }
+    .field label { color: var(--muted); font-size: var(--text-sm); font-weight: 800; }
+    .input, select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--fg);
+      padding: var(--space-3);
+      outline: 0;
+    }
+    .input:focus, select:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .input[aria-invalid="true"], select[aria-invalid="true"] {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger), transparent 82%);
+    }
+    .error-text {
+      display: none;
+      min-height: 28px;
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      background: color-mix(in oklab, var(--danger), transparent 92%);
+      color: var(--danger);
+      font-size: var(--text-sm);
+      font-weight: 700;
+    }
+    .error-text.show { display: block; }
+    .project-card {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+    }
+    .project-card:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--border), var(--fg) 18%); box-shadow: var(--elev-raised); }
+    .project-card[hidden], .tree-node[hidden] { display: none; }
+    .project-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .path, .meta { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); }
+    .empty-state, .loading-state {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-5);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--muted);
+      text-align: center;
+    }
+    .empty-state strong, .loading-state strong { color: var(--fg-2); }
+    .loading-bar {
+      width: min(240px, 100%);
+      height: 8px;
+      margin: var(--space-2) auto 0;
+      overflow: hidden;
+      border-radius: var(--radius-pill);
+      background: var(--border);
+    }
+    .loading-bar::before {
+      content: "";
+      display: block;
+      width: 45%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent), var(--success) 45%));
+      animation: loading-slide 900ms var(--ease-standard) infinite alternate;
+    }
+    .chip {
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .toast {
+      position: fixed;
+      right: var(--space-6);
+      bottom: var(--space-6);
+      z-index: 30;
+      max-width: 360px;
+      padding: var(--space-4);
+      color: var(--fg-2);
+      transform: translateY(16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--motion-base) var(--ease-standard), opacity var(--motion-base) var(--ease-standard);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @keyframes loading-slide {
+      from { transform: translateX(0); }
+      to { transform: translateX(125%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+    }
+    @media (max-width: 1180px) {
+      .app-shell { grid-template-columns: 72px minmax(0, 1fr); }
+      .sidebar { align-items: center; padding: var(--space-4); }
+      .brand span, .nav-item span:last-child, .sidebar-foot { display: none; }
+      .nav-item { width: 42px; grid-template-columns: 1fr; place-items: center; padding: 0; }
+    }
+    @media (max-width: 980px) {
+      .topbar, .layout { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+    }
+    @media (max-width: 720px) {
+      .app-shell { display: block; }
+      .sidebar {
+        position: sticky;
+        z-index: 20;
+        top: 0;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-between;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand span { display: inline; }
+      .nav-list { grid-auto-flow: column; overflow-x: auto; max-width: 64vw; }
+      .workspace { padding: var(--space-4); }
+      .tree-node[data-depth="1"] { margin-left: var(--space-4); }
+      .tree-node[data-depth="2"] { margin-left: var(--space-6); }
+    }
+    @media (max-width: 430px) {
+      .workspace, .panel-body, .panel-head { padding: var(--space-3); }
+      .actions, .form-actions { align-items: stretch; flex-direction: column; }
+      .btn { width: 100%; }
+      .toast { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="dashboard-v1.html" aria-label="RepoLens 项目库工作台">
+        <img class="mark" src="assets/brand/repolens-mark.svg" alt="" width="34" height="34" />
+        <span>RepoLens</span>
+      </a>
+      <nav class="nav-list" aria-label="主导航">
+        <a class="nav-item" href="dashboard-v1.html"><span class="nav-ico">库</span><span>项目库</span></a>
+        <a class="nav-item" aria-current="page" href="tags-v1.html"><span class="nav-ico">签</span><span>标签</span></a>
+        <a class="nav-item" href="scan-sources-v1.html"><span class="nav-ico">扫</span><span>扫描源</span></a>
+        <a class="nav-item" href="settings-v1.html"><span class="nav-ico">设</span><span>设置</span></a>
+      </nav>
+      <p class="sidebar-foot">标签树和项目列表使用独立搜索，便于批量打标前确认覆盖范围。</p>
+    </aside>
+
+    <main class="workspace">
+      <section class="topbar">
+        <div class="title-block">
+          <h1>层级标签管理</h1>
+          <p>左侧维护标签树，右侧处理创建、重命名、移动和删除；项目列表独立搜索，避免标签筛选和项目筛选互相干扰。</p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="dashboard-v1.html">返回项目库</a>
+          <button class="btn btn-primary" type="button" id="create-root">新建一级标签</button>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section class="tag-tree" data-od-id="tag-tree">
+          <div class="panel-head">
+            <h2>标签树</h2>
+            <span class="count" id="visible-tag-count">9</span>
+          </div>
+          <div class="panel-body">
+            <label class="search-box" aria-label="搜索标签树">
+              <span aria-hidden="true">⌕</span>
+              <input id="tag-search" type="search" placeholder="搜索标签名称或层级路径" autocomplete="off" />
+            </label>
+            <p class="state-line"><span id="tag-filter-copy">显示全部标签节点</span><span id="active-path-copy">业务域 / 水健康</span></p>
+            <div class="tree-list" id="tree-list" role="tree" aria-label="标签树"></div>
+          </div>
+        </section>
+
+        <section class="panel" data-od-id="tag-editor">
+          <div class="panel-head">
+            <h2 id="editor-title">业务域 / 水健康</h2>
+            <span class="count" id="active-count">2</span>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="tag-name">标签名称</label>
+              <input class="input" id="tag-name" value="水健康" maxlength="24" aria-describedby="tag-name-help form-error" autocomplete="off" />
+              <span class="field-help" id="tag-name-help">支持重命名当前节点；名称不能包含路径分隔符。</span>
+            </div>
+            <div class="field">
+              <label for="parent-select">移动到父级</label>
+              <select id="parent-select" aria-describedby="form-error">
+                <option value="">无（一级标签）</option>
+              </select>
+            </div>
+            <p class="error-text" id="form-error" role="alert"></p>
+            <p class="state-line"><span id="editor-state">当前标签未修改</span><span id="save-state">可安全编辑</span></p>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="button" id="save-tag" disabled>保存标签</button>
+              <button class="btn" type="button" id="create-child">创建子标签</button>
+              <button class="btn btn-danger" type="button" id="delete-tag">删除标签</button>
+            </div>
+            <label class="search-box" aria-label="搜索项目列表">
+              <span aria-hidden="true">⌕</span>
+              <input id="project-search" type="search" placeholder="在关联项目中搜索名称、路径或标签" autocomplete="off" />
+            </label>
+            <p class="state-line"><span id="project-filter-copy">当前标签关联 2 个项目</span><span>父级自动包含子孙标签</span></p>
+            <div class="project-list" id="project-list" aria-live="polite" aria-busy="false"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">已完成</div>
+
+  <script>
+    const tags = [
+      { id: "domain", name: "业务域", parentId: null, path: "业务域", depth: 0 },
+      { id: "water", name: "水健康", parentId: "domain", path: "业务域 / 水健康", depth: 1 },
+      { id: "clean", name: "清洁客服", parentId: "domain", path: "业务域 / 清洁客服", depth: 1 },
+      { id: "type", name: "项目类型", parentId: null, path: "项目类型", depth: 0 },
+      { id: "cli", name: "CLI 工具", parentId: "type", path: "项目类型 / CLI 工具", depth: 1 },
+      { id: "web", name: "Web App", parentId: "type", path: "项目类型 / Web App", depth: 1 },
+      { id: "status", name: "维护状态", parentId: null, path: "维护状态", depth: 0 },
+      { id: "frequent", name: "高频使用", parentId: "status", path: "维护状态 / 高频使用", depth: 1 },
+      { id: "stack", name: "技术栈", parentId: null, path: "技术栈", depth: 0 }
+    ];
+    const projects = [
+      { name: "water-product-transform-info", path: "/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info", tags: ["业务域 / 水健康", "项目类型 / CLI 工具", "维护状态 / 高频使用"] },
+      { name: "rag-agent", path: "/Users/ddd/Documents/rag-agent", tags: ["项目类型 / CLI 工具", "维护状态 / 高频使用", "技术栈 / TypeScript"] },
+      { name: "myself-todo", path: "/Users/ddd/Documents/myself-todo", tags: ["项目类型 / Web App", "维护状态 / 自用核心"] },
+      { name: "clean-transform-info", path: "/Users/ddd/D/feiyu/清洁客服/code/clean-transform-info", tags: ["业务域 / 清洁客服", "项目类型 / CLI 工具"] }
+    ];
+    const treeList = document.querySelector("#tree-list");
+    const projectList = document.querySelector("#project-list");
+    const toast = document.querySelector("#toast");
+    const tagSearchInput = document.querySelector("#tag-search");
+    const projectSearchInput = document.querySelector("#project-search");
+    const tagNameInput = document.querySelector("#tag-name");
+    const parentSelect = document.querySelector("#parent-select");
+    const saveTagButton = document.querySelector("#save-tag");
+    const formError = document.querySelector("#form-error");
+    const editorState = document.querySelector("#editor-state");
+    const saveState = document.querySelector("#save-state");
+    const tagFilterCopy = document.querySelector("#tag-filter-copy");
+    const activePathCopy = document.querySelector("#active-path-copy");
+    const projectFilterCopy = document.querySelector("#project-filter-copy");
+    let activeTag = tags[1];
+    let projectLoadTimer;
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    function getTag(id) {
+      return tags.find((tag) => tag.id === id);
+    }
+
+    function descendantsOf(tag) {
+      return tags.filter((item) => item.path.startsWith(`${tag.path} /`));
+    }
+
+    function ancestorsOf(tag) {
+      const ancestors = [];
+      let current = tag;
+      while (current.parentId) {
+        current = getTag(current.parentId);
+        if (!current) break;
+        ancestors.push(current);
+      }
+      return ancestors;
+    }
+
+    function refreshTagPaths(parentId = null, basePath = "", depth = 0) {
+      tags.filter((tag) => tag.parentId === parentId).forEach((tag) => {
+        tag.depth = depth;
+        tag.path = basePath ? `${basePath} / ${tag.name}` : tag.name;
+        refreshTagPaths(tag.id, tag.path, depth + 1);
+      });
+    }
+
+    function projectMatchesTag(project, tag) {
+      return project.tags.some((path) => path === tag.path || path.startsWith(`${tag.path} /`));
+    }
+
+    function projectCountFor(tag) {
+      return projects.filter((project) => projectMatchesTag(project, tag)).length;
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function showFormError(message) {
+      formError.textContent = message;
+      formError.classList.add("show");
+      tagNameInput.setAttribute("aria-invalid", "true");
+      editorState.textContent = "需要先处理错误";
+      saveState.textContent = "保存已禁用";
+    }
+
+    function clearFormError() {
+      formError.textContent = "";
+      formError.classList.remove("show");
+      tagNameInput.removeAttribute("aria-invalid");
+    }
+
+    function renderTree() {
+      treeList.innerHTML = tags.map((tag) => `
+        <button class="tree-node ${tag.id === activeTag.id ? "is-active" : ""}" type="button" role="treeitem" aria-selected="${tag.id === activeTag.id}" aria-level="${tag.depth + 1}" data-id="${tag.id}" data-depth="${tag.depth}" data-search="${tag.path.toLowerCase()}">
+          <span class="node-mark" aria-hidden="true"></span>
+          <span class="node-main">
+            <strong>${escapeHtml(tag.name)}</strong>
+            <small>${escapeHtml(tag.path)}</small>
+          </span>
+          <span class="count">${projectCountFor(tag)}</span>
+        </button>
+      `).join("");
+      document.querySelectorAll(".tree-node").forEach((node) => {
+        node.addEventListener("click", () => {
+          activeTag = tags.find((tag) => tag.id === node.dataset.id);
+          syncEditor();
+          renderTree();
+          renderProjects({ loading: true });
+          applyTagSearch();
+          window.clearTimeout(projectLoadTimer);
+          projectLoadTimer = window.setTimeout(() => renderProjects(), 220);
+        });
+      });
+      applyTagSearch();
+    }
+
+    function renderParentOptions() {
+      const blockedIds = new Set([activeTag.id, ...descendantsOf(activeTag).map((tag) => tag.id)]);
+      parentSelect.innerHTML = `<option value="">无（一级标签）</option>` + tags
+        .filter((tag) => !blockedIds.has(tag.id))
+        .map((tag) => `<option value="${tag.id}">${escapeHtml(tag.path)}</option>`)
+        .join("");
+      parentSelect.value = activeTag.parentId || "";
+    }
+
+    function syncEditor() {
+      document.querySelector("#editor-title").textContent = activeTag.path;
+      tagNameInput.value = activeTag.name;
+      document.querySelector("#active-count").textContent = String(projectCountFor(activeTag));
+      activePathCopy.textContent = activeTag.path;
+      renderParentOptions();
+      validateEditor(false);
+    }
+
+    function validateEditor(showError = true) {
+      const name = tagNameInput.value.trim();
+      const parentId = parentSelect.value || null;
+      let message = "";
+      if (!name) message = "标签名称不能为空。";
+      else if (name.includes("/")) message = "标签名称不能包含 /，层级关系请通过父级选择完成。";
+      else if (tags.some((tag) => tag.id !== activeTag.id && tag.parentId === parentId && tag.name === name)) message = "同一父级下已经存在同名标签。";
+
+      const changed = name !== activeTag.name || parentId !== activeTag.parentId;
+      saveTagButton.disabled = Boolean(message) || !changed;
+      if (message && showError) showFormError(message);
+      if (!message) {
+        clearFormError();
+        editorState.textContent = changed ? "有未保存修改" : "当前标签未修改";
+        saveState.textContent = changed ? "可保存" : "无变更";
+      }
+      return !message;
+    }
+
+    function remapProjectTagPaths(oldPath, newPath) {
+      projects.forEach((project) => {
+        project.tags = project.tags.map((path) => {
+          if (path === oldPath || path.startsWith(`${oldPath} /`)) return path.replace(oldPath, newPath);
+          return path;
+        });
+      });
+    }
+
+    function renderProjects(options = {}) {
+      if (options.loading) {
+        projectList.setAttribute("aria-busy", "true");
+        projectList.innerHTML = `
+          <div class="loading-state">
+            <strong>正在加载关联项目</strong>
+            <span>根据 ${escapeHtml(activeTag.path)} 重新计算父子标签覆盖范围。</span>
+            <span class="loading-bar" aria-hidden="true"></span>
+          </div>
+        `;
+        return;
+      }
+
+      projectList.setAttribute("aria-busy", "false");
+      const query = projectSearchInput.value.trim().toLowerCase();
+      const scoped = projects.filter((project) => projectMatchesTag(project, activeTag));
+      const visible = scoped.filter((project) => {
+        const haystack = `${project.name} ${project.path} ${project.tags.join(" ")}`.toLowerCase();
+        return !query || haystack.includes(query);
+      });
+
+      projectFilterCopy.textContent = query
+        ? `搜索命中 ${visible.length} / ${scoped.length} 个关联项目`
+        : `当前标签关联 ${scoped.length} 个项目`;
+
+      if (!visible.length) {
+        projectList.innerHTML = `
+          <div class="empty-state">
+            <strong>没有匹配项目</strong>
+            <span>${query ? "清空项目搜索，或切换到父级标签查看更大的覆盖范围。" : "该标签暂未关联项目，可从项目库批量追加标签。"}</span>
+          </div>
+        `;
+        return;
+      }
+
+      projectList.innerHTML = visible.map((project) => `
+        <article class="project-card">
+          <strong title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</strong>
+          <span class="path">${escapeHtml(project.path)}</span>
+          <div class="chip-row">${project.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}</div>
+        </article>
+      `).join("");
+    }
+
+    function applyTagSearch() {
+      const query = tagSearchInput.value.trim().toLowerCase();
+      const visibleIds = new Set();
+      if (!query) {
+        tags.forEach((tag) => visibleIds.add(tag.id));
+      } else {
+        tags.forEach((tag) => {
+          if (!tag.name.toLowerCase().includes(query) && !tag.path.toLowerCase().includes(query)) return;
+          visibleIds.add(tag.id);
+          ancestorsOf(tag).forEach((ancestor) => visibleIds.add(ancestor.id));
+          descendantsOf(tag).forEach((descendant) => visibleIds.add(descendant.id));
+        });
+      }
+      let visible = 0;
+      document.querySelectorAll(".tree-node").forEach((node) => {
+        const shown = visibleIds.has(node.dataset.id);
+        node.hidden = !shown;
+        if (shown) visible += 1;
+      });
+      document.querySelector("#visible-tag-count").textContent = String(visible);
+      tagFilterCopy.textContent = query ? `搜索命中 ${visible} 个标签节点` : `显示全部 ${tags.length} 个标签节点`;
+    }
+
+    function createTag(parentId) {
+      const parent = parentId ? getTag(parentId) : null;
+      const baseName = parent ? "新子标签" : "新一级标签";
+      let index = 1;
+      let name = `${baseName} ${index}`;
+      while (tags.some((tag) => tag.parentId === parentId && tag.name === name)) {
+        index += 1;
+        name = `${baseName} ${index}`;
+      }
+      const tag = {
+        id: `tag-${Date.now()}`,
+        name,
+        parentId,
+        path: parent ? `${parent.path} / ${name}` : name,
+        depth: parent ? parent.depth + 1 : 0
+      };
+      tags.push(tag);
+      activeTag = tag;
+      refreshTagPaths();
+      syncEditor();
+      renderTree();
+      renderProjects();
+      tagNameInput.focus();
+      tagNameInput.select();
+      showToast(parent ? "已创建子级标签草稿" : "已创建一级标签草稿");
+    }
+
+    tagSearchInput.addEventListener("input", applyTagSearch);
+    projectSearchInput.addEventListener("input", () => renderProjects());
+    tagNameInput.addEventListener("input", () => validateEditor(true));
+    parentSelect.addEventListener("change", () => validateEditor(true));
+    saveTagButton.addEventListener("click", () => {
+      if (!validateEditor(true)) return;
+      const oldPath = activeTag.path;
+      const name = tagNameInput.value.trim();
+      const parentId = parentSelect.value || null;
+      const parent = parentId ? getTag(parentId) : null;
+      const newPath = parent ? `${parent.path} / ${name}` : name;
+      activeTag.name = name;
+      activeTag.parentId = parentId;
+      remapProjectTagPaths(oldPath, newPath);
+      refreshTagPaths();
+      syncEditor();
+      renderTree();
+      renderProjects();
+      showToast("标签名称和父级已保存");
+    });
+    document.querySelector("#create-root").addEventListener("click", () => createTag(null));
+    document.querySelector("#create-child").addEventListener("click", () => createTag(activeTag.id));
+    document.querySelector("#delete-tag").addEventListener("click", () => {
+      const childCount = descendantsOf(activeTag).length;
+      const projectCount = projectCountFor(activeTag);
+      if (childCount) {
+        showFormError(`无法直接删除：${activeTag.name} 下还有 ${childCount} 个子标签，请先迁移或删除子级。`);
+        return;
+      }
+      if (projectCount) {
+        showFormError(`无法直接删除：仍有 ${projectCount} 个项目关联该标签，请先在项目库中迁移归属。`);
+        return;
+      }
+      tags.splice(tags.findIndex((tag) => tag.id === activeTag.id), 1);
+      activeTag = tags[0];
+      syncEditor();
+      renderTree();
+      renderProjects();
+      showToast("空标签已删除");
+    });
+    renderTree();
+    syncEditor();
+    renderProjects();
+  </script>
+</body>
+</html>

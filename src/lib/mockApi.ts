@@ -174,6 +174,44 @@ export const mockApi: AppApi = {
     };
     return cloneProject(projects[index]);
   },
+  async bulkTagProjects(input) {
+    if (input.mode !== "append") {
+      throw new Error("Only append mode is supported.");
+    }
+    const projectIds = unique(input.projectIds.map((id) => id.trim()).filter(Boolean));
+    const tagIds = unique(input.tagIds.map((id) => id.trim()).filter(Boolean));
+    if (!projectIds.length) {
+      throw new Error("Select at least one project.");
+    }
+    if (!tagIds.length) {
+      throw new Error("Select at least one tag.");
+    }
+    const missingProject = projectIds.find((projectId) => !projects.some((project) => project.id === projectId));
+    if (missingProject) {
+      throw new Error("One or more projects were not found.");
+    }
+    const missingTag = tagIds.find((tagId) => !tags.some((tag) => tag.id === tagId));
+    if (missingTag) {
+      throw new Error("One or more tags were not found.");
+    }
+
+    const updatedAt = new Date().toISOString();
+    projects = projects.map((project) => {
+      if (!projectIds.includes(project.id)) {
+        return project;
+      }
+      return {
+        ...project,
+        tags: toProjectTags(unique([...project.tags.map((tag) => tag.id), ...tagIds])),
+        updatedAt
+      };
+    });
+    return {
+      updatedCount: projectIds.length,
+      updatedProjects: projects.filter((project) => projectIds.includes(project.id)).map(toListItem),
+      updatedAt
+    };
+  },
   async addManualProject(path) {
     const id = `manual_${Date.now()}`;
     const project: ProjectDetail = {
@@ -324,7 +362,9 @@ function toListItem(project: ProjectDetail): ProjectListItem {
     tags: project.tags,
     lastModifiedAt: project.lastModifiedAt,
     source: project.source,
-    favorite: project.favorite
+    favorite: project.favorite,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt
   };
 }
 

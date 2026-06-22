@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/tauri";
 import type {
   AppApi,
   ApplyTagSuggestionsInput,
+  BulkTagProjectsInput,
   GenerateTagSuggestionsInput,
   OpenAction,
   ProjectFilters,
@@ -24,6 +25,7 @@ export const api: AppApi = isTauri
       getProject: (projectId: string) => call("get_project", { projectId }),
       updateProject: (projectId: string, patch: ProjectUpdatePatch) =>
         call("update_project", { projectId, patch }),
+      bulkTagProjects: (input: BulkTagProjectsInput) => call("bulk_tag_projects", { input }),
       addManualProject: (path: string) => call("add_manual_project", { path }),
       deleteProject: (projectId: string) => call("delete_project", { projectId }),
       listTags: () => call("list_tags"),

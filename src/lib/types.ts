@@ -3,6 +3,8 @@ export type {
   AiTagSuggestion,
   AppApi,
   ApplyTagSuggestionsInput,
+  BulkTagProjectsInput,
+  BulkTagProjectsResult,
   FieldSource,
   GenerateTagSuggestionsInput,
   GenerateTagSuggestionsResult,

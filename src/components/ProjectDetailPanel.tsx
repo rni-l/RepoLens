@@ -37,7 +37,7 @@ export function ProjectDetailPanel({
   return (
     <section className="panel" data-od-id="project-detail">
       <div className="panel-head">
-        <h2>项目详情</h2>
+        <h2>字段维护</h2>
         <button className="btn" type="button" disabled={!project} onClick={() => project && onCopyPath(project.path)}>
           复制路径
         </button>

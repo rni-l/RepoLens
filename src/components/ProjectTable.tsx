@@ -1,65 +1,137 @@
+import { useEffect, useRef } from "react";
 import type { OpenAction, OpenActionAvailability, ProjectListItem } from "../lib/types";
 import { ProjectRowActions } from "./ProjectRowActions";
 import { StatusBadge } from "./StatusBadge";
 
 type Props = {
   projects: ProjectListItem[];
-  selectedProjectId: string | null;
+  activeProjectId: string | null;
+  selectedProjectIds: string[];
   openActions: OpenActionAvailability[];
   onSelect(projectId: string): void;
+  onToggleProject(projectId: string): void;
+  onToggleAll(): void;
   onOpen(projectId: string, action: OpenAction): void;
 };
 
-export function ProjectTable({ projects, selectedProjectId, openActions, onSelect, onOpen }: Props) {
+export function ProjectTable({
+  projects,
+  activeProjectId,
+  selectedProjectIds,
+  openActions,
+  onSelect,
+  onToggleProject,
+  onToggleAll,
+  onOpen
+}: Props) {
+  const selected = new Set(selectedProjectIds);
+  const allVisibleSelected = projects.length > 0 && projects.every((project) => selected.has(project.id));
+  const hasPartialSelection = selectedProjectIds.length > 0 && !allVisibleSelected;
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = hasPartialSelection;
+    }
+  }, [hasPartialSelection]);
+
   return (
-    <section className="library" data-od-id="project-library" aria-label="项目列表">
-      <div className="library-head" aria-hidden="true">
-        <span>项目</span>
-        <span>标签</span>
-        <span>状态</span>
-        <span>打开方式</span>
-      </div>
+    <section className="table-card" data-od-id="project-library" aria-label="项目列表">
       {projects.length === 0 ? (
         <div className="empty-state">
           <strong>还没有匹配的项目</strong>
           <span>添加扫描根或调整搜索条件后再试。</span>
         </div>
       ) : (
-        projects.map((project) => (
-          <article
-            className={`project-row ${project.id === selectedProjectId ? "is-selected" : ""}`}
-            role="button"
-            tabIndex={0}
-            key={project.id}
-            onClick={() => onSelect(project.id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelect(project.id);
-              }
-            }}
-          >
-            <span className="project-title">
-              <strong>{project.favorite ? "★ " : ""}{project.name}</strong>
-              <span className="path">{project.path}</span>
-            </span>
-            <span className="tags">
-              {project.tags.slice(0, 4).map((tag) => (
-                <span className="tag" key={tag.id} title={tag.path}>{tag.name}</span>
-              ))}
-              {project.tags.length === 0 && project.techStacks.slice(0, 3).map((stack) => (
-                <span className="tag tag-muted" key={stack}>{stack}</span>
-              ))}
-            </span>
-            <StatusBadge status={project.status} />
-            <ProjectRowActions
-              availability={openActions}
-              disabled={project.status === "missing"}
-              onOpen={(action) => onOpen(project.id, action)}
-            />
-          </article>
-        ))
+        <table>
+          <thead>
+            <tr>
+              <th className="col-check">
+                <input
+                  ref={headerCheckboxRef}
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  aria-label="选择当前列表全部项目"
+                  onChange={onToggleAll}
+                />
+              </th>
+              <th className="col-project">项目</th>
+              <th className="col-tags">标签</th>
+              <th className="col-status">状态</th>
+              <th className="col-time">创建时间</th>
+              <th className="col-time">最后更新</th>
+              <th className="col-open">打开方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            {projects.map((project) => (
+              <tr
+                className={`${project.id === activeProjectId || selected.has(project.id) ? "is-selected" : ""}`}
+                tabIndex={0}
+                key={project.id}
+                onClick={() => onSelect(project.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(project.id);
+                  }
+                }}
+              >
+                <td className="col-check">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(project.id)}
+                    aria-label={`选择 ${project.name}`}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={() => onToggleProject(project.id)}
+                  />
+                </td>
+                <td className="col-project">
+                  <span className="project-cell">
+                    <strong className="project-name">{project.favorite ? "★ " : ""}{project.name}</strong>
+                    <span className="path">{project.path}</span>
+                    <span className="mobile-meta">
+                      创建 {formatDateTime(project.createdAt)} · 更新 {formatDateTime(project.updatedAt)}
+                    </span>
+                  </span>
+                </td>
+                <td className="col-tags">
+                  <span className="tags">
+                    {project.tags.slice(0, 4).map((tag) => (
+                      <span className="tag" key={tag.id} title={tag.path}>{tag.name}</span>
+                    ))}
+                    {project.tags.length === 0 && project.techStacks.slice(0, 3).map((stack) => (
+                      <span className="tag tag-muted" key={stack}>{stack}</span>
+                    ))}
+                  </span>
+                </td>
+                <td className="col-status"><StatusBadge status={project.status} /></td>
+                <td className="col-time mono">{formatDateTime(project.createdAt)}</td>
+                <td className="col-time mono">{formatDateTime(project.updatedAt)}</td>
+                <td className="col-open">
+                  <ProjectRowActions
+                    availability={openActions}
+                    disabled={project.status === "missing"}
+                    onOpen={(action) => onOpen(project.id, action)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </section>
   );
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

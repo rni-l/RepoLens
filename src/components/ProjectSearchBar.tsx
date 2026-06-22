@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { ProjectStatus, TagNode } from "../lib/types";
 
 type FilterKey = "all" | ProjectStatus | "favorite";
+const SEARCH_DEBOUNCE_MS = 250;
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "全部" },
@@ -30,7 +32,22 @@ export function ProjectSearchBar({
   onFilterChange,
   onTagFilterChange
 }: Props) {
+  const [draftQuery, setDraftQuery] = useState(query);
   const selectedTags = tags.filter((tag) => selectedTagIds.includes(tag.id));
+
+  useEffect(() => {
+    setDraftQuery(query);
+  }, [query]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (draftQuery !== query) {
+        onQueryChange(draftQuery);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [draftQuery, onQueryChange, query]);
 
   function addTagFilter(tagId: string) {
     if (!tagId || selectedTagIds.includes(tagId)) return;
@@ -45,8 +62,8 @@ export function ProjectSearchBar({
           type="search"
           placeholder="搜索名称、路径、标签、技术栈或启动命令"
           autoComplete="off"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
+          value={draftQuery}
+          onChange={(event) => setDraftQuery(event.target.value)}
         />
       </label>
       <div className="filters" aria-label="项目筛选">
