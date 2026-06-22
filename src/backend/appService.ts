@@ -17,6 +17,7 @@ import type {
   ScanRootUpdatePatch,
   ScanSummary,
   TagCreateInput,
+  TagMoveDirection,
   TagNode,
   TagUpdatePatch
 } from "../shared/types.js";
@@ -50,10 +51,13 @@ export class RepoLensService implements AppApi {
   }
 
   async listProjects(filters: ProjectFilters = {}): Promise<ProjectListItem[]> {
+    await this.refreshFolderTimesForList();
     return this.database.listProjects(filters);
   }
 
   async getProject(projectId: string): Promise<ProjectDetail> {
+    const project = this.database.getProject(projectId);
+    await this.refreshFolderTimes(project);
     return this.database.getProject(projectId);
   }
 
@@ -89,6 +93,10 @@ export class RepoLensService implements AppApi {
 
   async updateTag(id: string, patch: TagUpdatePatch): Promise<TagNode> {
     return this.database.updateTag(id, patch);
+  }
+
+  async moveTag(id: string, direction: TagMoveDirection): Promise<TagNode[]> {
+    return this.database.moveTag(id, direction);
   }
 
   async deleteTag(id: string): Promise<void> {
@@ -207,4 +215,29 @@ export class RepoLensService implements AppApi {
     const env = this.options.env ?? process.env;
     return env.REPOLENS_AI_DISABLED === "1" || env.REPOLENS_AI_PROVIDER === "disabled";
   }
+
+  private async refreshFolderTimesForList(): Promise<void> {
+    const projects = this.database.listProjects({});
+    await Promise.all(projects.map((project) => this.refreshFolderTimes(project)));
+  }
+
+  private async refreshFolderTimes(project: ProjectListItem): Promise<void> {
+    const stats = await fs.stat(project.path).catch(() => null);
+    if (!stats?.isDirectory()) {
+      return;
+    }
+    const folderCreatedAt = dateToIso(stats.birthtime) ?? dateToIso(stats.ctime);
+    const folderUpdatedAt = dateToIso(stats.mtime);
+    if (folderCreatedAt !== project.createdAt || folderUpdatedAt !== project.updatedAt) {
+      this.database.refreshProjectFolderTimes(project.id, folderCreatedAt, folderUpdatedAt);
+    }
+  }
+}
+
+function dateToIso(date: Date): string | null {
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null;
+  }
+  return date.toISOString();
 }

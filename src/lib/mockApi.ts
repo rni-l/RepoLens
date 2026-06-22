@@ -13,6 +13,7 @@ import type {
   ScanRootUpdatePatch,
   ScanSummary,
   TagCreateInput,
+  TagMoveDirection,
   TagNode,
   TagUpdatePatch
 } from "./types";
@@ -169,8 +170,7 @@ export const mockApi: AppApi = {
       tags: tagIds === undefined ? projects[index].tags : toProjectTags(unique(tagIds)),
       descriptionSource: patch.description === undefined ? projects[index].descriptionSource : "user",
       startCommandSource: patch.startCommand === undefined ? projects[index].startCommandSource : "user",
-      testCommandSource: patch.testCommand === undefined ? projects[index].testCommandSource : "user",
-      updatedAt: new Date().toISOString()
+      testCommandSource: patch.testCommand === undefined ? projects[index].testCommandSource : "user"
     };
     return cloneProject(projects[index]);
   },
@@ -202,8 +202,7 @@ export const mockApi: AppApi = {
       }
       return {
         ...project,
-        tags: toProjectTags(unique([...project.tags.map((tag) => tag.id), ...tagIds])),
-        updatedAt
+        tags: toProjectTags(unique([...project.tags.map((tag) => tag.id), ...tagIds]))
       };
     });
     return {
@@ -253,6 +252,10 @@ export const mockApi: AppApi = {
   },
   async updateTag(id: string, patch: TagUpdatePatch) {
     return updateTag(id, patch);
+  },
+  async moveTag(id: string, direction: TagMoveDirection) {
+    moveTag(id, direction);
+    return mockApi.listTags();
   },
   async deleteTag(id: string) {
     const target = getTag(id);
@@ -381,10 +384,12 @@ function filterProjects(items: ProjectDetail[], filters: ProjectFilters): Projec
   const query = filters.query?.trim().toLowerCase();
   const normalizedPathQuery = query?.replace(/\s*\/\s*/g, "/");
   const allowedTagIds = filters.tagIds?.length ? descendantTagIds(filters.tagIds) : null;
+  const excludedTagIds = filters.excludedTagIds?.length ? descendantTagIds(filters.excludedTagIds) : null;
   return items.filter((project) => {
     if (filters.favoriteOnly && !project.favorite) return false;
     if (filters.statuses?.length && !filters.statuses.includes(project.status)) return false;
     if (allowedTagIds && !project.tags.some((tag) => allowedTagIds.has(tag.id))) return false;
+    if (excludedTagIds && project.tags.some((tag) => excludedTagIds.has(tag.id))) return false;
     if (query) {
       const haystack = [
         project.name,
@@ -435,11 +440,12 @@ function createTag(input: TagCreateInput): TagNode {
     parentId: parent?.id ?? null,
     path: parent ? `${parent.path}/${name}` : name,
     depth: parent ? parent.depth + 1 : 0,
+    sortOrder: nextTagSortOrder(parent?.id ?? null),
     projectCount: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
-  tags = [...tags, tag].sort((left, right) => left.path.localeCompare(right.path, "zh-CN"));
+  tags = sortTagsForTree([...tags, tag]);
   return { ...tag };
 }
 
@@ -481,12 +487,44 @@ function updateTag(id: string, patch: TagUpdatePatch): TagNode {
       };
     }
     return tag;
-  }).sort((left, right) => left.path.localeCompare(right.path, "zh-CN"));
+  });
+  if (nextParentId !== current.parentId) {
+    tags = tags.map((tag) => tag.id === id ? { ...tag, sortOrder: nextTagSortOrder(nextParent?.id ?? null, tag.id) } : tag);
+  }
+  tags = sortTagsForTree(tags);
   projects = projects.map((project) => ({
     ...project,
-    tags: project.tags.map((projectTag) => toProjectTag(getTag(projectTag.id)))
+    tags: toProjectTags(project.tags.map((projectTag) => projectTag.id))
   }));
   return { ...getTag(id) };
+}
+
+function moveTag(id: string, direction: TagMoveDirection): void {
+  if (direction !== "up" && direction !== "down") {
+    throw new Error("Tag move direction must be up or down.");
+  }
+  const current = getTag(id);
+  const siblings = tags.filter((tag) => tag.parentId === current.parentId).sort(compareTags);
+  const currentIndex = siblings.findIndex((tag) => tag.id === id);
+  const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+    return;
+  }
+  const target = siblings[targetIndex];
+  const updatedAt = new Date().toISOString();
+  tags = sortTagsForTree(tags.map((tag) => {
+    if (tag.id === current.id) {
+      return { ...tag, sortOrder: target.sortOrder, updatedAt };
+    }
+    if (tag.id === target.id) {
+      return { ...tag, sortOrder: current.sortOrder, updatedAt };
+    }
+    return tag;
+  }));
+  projects = projects.map((project) => ({
+    ...project,
+    tags: toProjectTags(project.tags.map((tag) => tag.id))
+  }));
 }
 
 function getTag(id: string): TagNode {
@@ -498,7 +536,8 @@ function getTag(id: string): TagNode {
 }
 
 function toProjectTags(tagIds: string[]): ProjectTag[] {
-  return tagIds.map((tagId) => toProjectTag(getTag(tagId))).sort((left, right) => left.path.localeCompare(right.path, "zh-CN"));
+  const linked = new Set(tagIds);
+  return sortTagsForTree(tags).filter((tag) => linked.has(tag.id)).map(toProjectTag);
 }
 
 function toProjectTag(tag: TagNode): ProjectTag {
@@ -576,6 +615,40 @@ function normalizeTagName(name: string): string {
 
 function tagId(path: string): string {
   return `tag_${Array.from(path).map((char) => char.charCodeAt(0).toString(36)).join("_")}`;
+}
+
+function nextTagSortOrder(parentId: string | null, exceptId?: string): number {
+  const siblings = tags.filter((tag) => tag.parentId === parentId && tag.id !== exceptId);
+  return siblings.length ? Math.max(...siblings.map((tag) => tag.sortOrder)) + 1 : 0;
+}
+
+function sortTagsForTree(items: TagNode[]): TagNode[] {
+  const byParent = new Map<string, TagNode[]>();
+  for (const item of items) {
+    const key = item.parentId ?? "";
+    byParent.set(key, [...(byParent.get(key) ?? []), item]);
+  }
+  for (const siblings of byParent.values()) {
+    siblings.sort(compareTags);
+  }
+
+  const result: TagNode[] = [];
+  const append = (parentId: string | null) => {
+    for (const tag of byParent.get(parentId ?? "") ?? []) {
+      result.push(tag);
+      append(tag.id);
+    }
+  };
+  append(null);
+  return result;
+}
+
+function compareTags(left: TagNode, right: TagNode): number {
+  const order = left.sortOrder - right.sortOrder;
+  if (order !== 0) {
+    return order;
+  }
+  return left.path.localeCompare(right.path, "zh-CN");
 }
 
 function unique(items: string[]): string[] {

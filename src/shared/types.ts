@@ -23,6 +23,7 @@ export type TagNode = {
   parentId: string | null;
   path: string;
   depth: number;
+  sortOrder: number;
   projectCount: number;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +44,8 @@ export type TagUpdatePatch = {
   name?: string;
   parentId?: string | null;
 };
+
+export type TagMoveDirection = "up" | "down";
 
 export type AiTagSuggestion = {
   id: string;
@@ -134,6 +137,7 @@ export type ProjectFilters = {
   statuses?: ProjectStatus[];
   techStacks?: string[];
   tagIds?: string[];
+  excludedTagIds?: string[];
   scanRootId?: string;
   source?: ProjectSource;
   favoriteOnly?: boolean;
@@ -203,6 +207,7 @@ export type AppApi = {
   listTags(): Promise<TagNode[]>;
   createTag(input: TagCreateInput): Promise<TagNode>;
   updateTag(id: string, patch: TagUpdatePatch): Promise<TagNode>;
+  moveTag(id: string, direction: TagMoveDirection): Promise<TagNode[]>;
   deleteTag(id: string): Promise<void>;
   getAiTaggingStatus(): Promise<AiTaggingStatus>;
   generateTagSuggestions(input: GenerateTagSuggestionsInput): Promise<GenerateTagSuggestionsResult>;

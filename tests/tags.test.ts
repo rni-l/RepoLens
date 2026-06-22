@@ -92,14 +92,49 @@ test("updates projects with structured tag links and rejects unknown tag ids", a
   database.close();
 });
 
-test("project list items include index timestamps", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-project-timestamps-"));
+test("manually reorders sibling tags and project tag display follows tree order", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-tags-reorder-"));
   const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
   const project = database.upsertProject(projectInput(path.join(tempDir, "app"), "demo-app")).project;
+  const first = database.createTag({ name: "first" });
+  const second = database.createTag({ name: "second" });
+  const third = database.createTag({ name: "third" });
+  const root = database.createTag({ name: "root" });
+  const childA = database.createTag({ name: "child-a", parentId: root.id });
+  const childB = database.createTag({ name: "child-b", parentId: root.id });
+
+  database.moveTag(third.id, "up");
+  assert.deepEqual(database.listTags().filter((tag) => tag.parentId === null).map((tag) => tag.name), [
+    "first",
+    "third",
+    "second",
+    "root"
+  ]);
+
+  database.moveTag(childB.id, "up");
+  assert.deepEqual(database.listTags().filter((tag) => tag.parentId === root.id).map((tag) => tag.name), [
+    "child-b",
+    "child-a"
+  ]);
+
+  database.updateProject(project.id, { tagIds: [second.id, first.id, third.id] });
+  assert.deepEqual(database.getProject(project.id).tags.map((tag) => tag.name), ["first", "third", "second"]);
+  database.close();
+});
+
+test("project list items expose folder timestamps for workspace table time columns", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-project-timestamps-"));
+  const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
+  const folderCreatedAt = "2024-01-02T03:04:05.000Z";
+  const folderUpdatedAt = "2024-02-03T04:05:06.000Z";
+  const project = database.upsertProject(projectInput(path.join(tempDir, "app"), "demo-app", {
+    folderCreatedAt,
+    folderUpdatedAt
+  })).project;
 
   const listed = database.listProjects().find((item) => item.id === project.id);
-  assert.ok(listed?.createdAt);
-  assert.ok(listed?.updatedAt);
+  assert.equal(listed?.createdAt, folderCreatedAt);
+  assert.equal(listed?.updatedAt, folderUpdatedAt);
   database.close();
 });
 
@@ -111,6 +146,7 @@ test("bulk appends tags to multiple projects without replacing existing tags", a
   const existing = database.createTag({ name: "已有标签" });
   const root = database.createTag({ name: "项目类型" });
   const cli = database.createTag({ name: "CLI 工具", parentId: root.id });
+  const originalFirstUpdatedAt = first.updatedAt;
 
   database.updateProject(first.id, { tagIds: [existing.id] });
   const result = database.bulkTagProjects({
@@ -122,7 +158,7 @@ test("bulk appends tags to multiple projects without replacing existing tags", a
   assert.equal(result.updatedCount, 2);
   assert.deepEqual(database.getProject(first.id).tags.map((tag) => tag.path), ["已有标签", "项目类型/CLI 工具"]);
   assert.deepEqual(database.getProject(second.id).tags.map((tag) => tag.path), ["项目类型/CLI 工具"]);
-  assert.equal(database.getProject(first.id).updatedAt, result.updatedAt);
+  assert.equal(database.getProject(first.id).updatedAt, originalFirstUpdatedAt);
   database.close();
 });
 
@@ -154,6 +190,7 @@ test("tag filters include descendant assignments and query search matches tag pa
   const database = new RepoLensDatabase(path.join(tempDir, "index.sqlite"));
   const waterProject = database.upsertProject(projectInput(path.join(tempDir, "water"), "water-tool")).project;
   const todoProject = database.upsertProject(projectInput(path.join(tempDir, "todo"), "todo-app")).project;
+  const untaggedProject = database.upsertProject(projectInput(path.join(tempDir, "untagged"), "untagged-app")).project;
   const domain = database.createTag({ name: "业务域" });
   const water = database.createTag({ name: "水健康", parentId: domain.id });
   const transform = database.createTag({ name: "数据转换", parentId: water.id });
@@ -164,6 +201,9 @@ test("tag filters include descendant assignments and query search matches tag pa
   database.updateProject(todoProject.id, { tagIds: [webApp.id] });
 
   assert.deepEqual(database.listProjects({ tagIds: [water.id] }).map((project) => project.id), [waterProject.id]);
+  assert.deepEqual(ids(database.listProjects({ excludedTagIds: [water.id] })), ids([todoProject, untaggedProject]));
+  assert.deepEqual(database.listProjects({ excludedTagIds: [domain.id, type.id] }).map((project) => project.id), [untaggedProject.id]);
+  assert.deepEqual(database.listProjects({ tagIds: [domain.id], excludedTagIds: [water.id] }).map((project) => project.id), []);
   assert.deepEqual(database.listProjects({ query: "水健康" }).map((project) => project.id), [waterProject.id]);
   assert.deepEqual(database.listProjects({ query: "业务域 / 水健康" }).map((project) => project.id), [waterProject.id]);
   assert.deepEqual(database.listProjects({ query: "Web App" }).map((project) => project.id), [todoProject.id]);
@@ -190,7 +230,18 @@ async function tempDbPath(prefix: string): Promise<string> {
   return path.join(tempDir, "index.sqlite");
 }
 
-function projectInput(projectPath: string, name: string) {
+function ids(projects: Array<{ id: string }>): string[] {
+  return projects.map((project) => project.id).sort();
+}
+
+function projectInput(
+  projectPath: string,
+  name: string,
+  overrides: Partial<{
+    folderCreatedAt: string | null;
+    folderUpdatedAt: string | null;
+  }> = {}
+) {
   const normalizedPath = path.resolve(projectPath);
   return {
     id: idFromPath("project", normalizedPath),
@@ -205,6 +256,7 @@ function projectInput(projectPath: string, name: string) {
     testCommand: "npm test",
     entryFiles: ["src/main.ts"],
     lastModifiedAt: null,
-    lastScannedAt: new Date().toISOString()
+    lastScannedAt: new Date().toISOString(),
+    ...overrides
   };
 }

@@ -1,0 +1,61 @@
+diff --git a/docs/plan/2026-06-22-optimize-tag-search-design.md b/docs/plan/2026-06-22-optimize-tag-search-design.md
+--- a/docs/plan/2026-06-22-optimize-tag-search-design.md
++++ b/docs/plan/2026-06-22-optimize-tag-search-design.md
+@@
+ ## Key Changes
+ 
++- 设计稿更新：
++  - `docs/design/dashboard.html` 是本次工作台优化的主稿，承载标签筛选、项目列表、批量打标和文件夹时间展示。
++  - 工作台顶部搜索区保留项目关键字搜索，并把状态筛选从标签筛选中拆开：状态 chip 只处理 `全部 / 活跃 / 实验 / 缺失 / 收藏`。
++  - 标签筛选区改为独立卡片：左侧是可搜索的层级标签树，右侧是当前筛选摘要、完整路径 token、单项移除和清空入口。
++  - 标签树节点显示标签段名称、完整路径和命中项目数量；选择父级标签时按标签子树语义参与筛选。
++  - “反选排除”使用按钮态而不是隐藏选项；开启后文案明确说明“排除任一选中标签及其子孙标签，未打标签项目保留”。
++  - 项目列表新增选择列和“文件夹时间”列；文件夹时间主行展示最后更新，副行展示创建时间。
++  - 批量打标入口只在已选择项目时出现；点击后打开右侧抽屉，抽屉内复用层级标签树、搜索和已选标签预览。
++  - 批量追加后保持 append 语义：只新增缺失的 `project_tag_links`，已存在的关联跳过，不覆盖已有标签。
++
+ - 标签筛选：
+   - 在 `ProjectSearchBar` 中用可复用树选择器替换 `select`。
+   - 支持多选，匹配语义为“任一选中标签或其子孙标签命中”。
+@@
+ - API / 类型 / 数据：
+   - 扩展 `ProjectFilters`：新增 `excludedTagIds?: string[]`。
+   - `listProjects()` 同时支持 `tagIds` 和 `excludedTagIds`；二者都按标签子树展开。
+   - 扩展扫描提取数据，保存文件夹时间：`folderCreatedAt` 与 `folderUpdatedAt`，其中 `folderUpdatedAt = stats.mtime`。
+   - 项目列表对外的 `createdAt / updatedAt` 改为返回文件夹时间；数据库行审计时间保留在内部，不再用于工作台表格展示。
+   - mock API 同步支持 `excludedTagIds` 和文件夹时间字段，保证 Vite 开发模式行为一致。
++
++## Implementation Notes
++
++- 前端组件建议拆分：
++  - `TagTreeSelector`：基础树选择器，接收 `mode: "filter" | "bulk"`、`selectedTagIds`、`onChange`、`searchPlaceholder`、`showProjectCount`。
++  - `ProjectSearchBar`：只负责关键字、状态和标签筛选条件组合，不再内置固定业务标签 chip。
++  - `SelectedTagSummary`：展示完整路径 token、包含/排除模式说明、单项移除、清空。
++  - `BulkTagDrawer`：右侧抽屉，接收已选项目 ID、可选标签树和 append 操作回调。
++  - `FolderTimeCell`：统一展示 `folderUpdatedAt` 和 `folderCreatedAt`，避免工作台表格继续读取数据库行审计时间。
++- 状态与查询参数建议：
++  - `tagIds` 表示包含筛选，OR 语义，按每个标签的子树展开。
++  - `excludedTagIds` 表示排除筛选，OR 语义，按每个标签的子树展开。
++  - 同时存在 `tagIds` 与 `excludedTagIds` 时，先执行包含筛选，再执行排除筛选。
++  - 未打标签项目在排除模式下不应被排除，除非还有关键字、状态或其他筛选条件不命中。
++- 抽屉交互建议：
++  - 已选项目数量为 0 时不显示批量入口或禁用打开按钮。
++  - 抽屉打开后焦点进入标签搜索框，`Escape` 关闭，点击遮罩关闭。
++  - “追加标签”按钮仅在已选择项目且已选择标签时可用。
++  - 成功后 toast 展示新增关联数量；如果所有项目已包含这些标签，toast 明确提示“所选项目已包含这些标签”。
++- 文件夹时间建议：
++  - 扫描阶段保存 `folderCreatedAt` 和 `folderUpdatedAt` 原始字段。
++  - 工作台列表展示文件夹时间；项目详情中如需展示数据库审计时间，应另起“记录更新时间”文案，避免与文件夹时间混淆。
+ 
+ ## Test Plan
+ 
+ - 后端测试：
+@@
+ - 前端验证：
+   - `npm run typecheck`
+   - `npm test`
+   - `npm run build`
++  - 手动检查工作台设计稿 `docs/design/dashboard.html`：关键字搜索、状态筛选、标签树搜索、父级标签包含子孙标签、完整路径 token、单项移除、清空标签筛选。
+   - 手动检查工作台：标签树多选、清空、反选、反选后未打标签项目保留。
+   - 手动检查批量打标抽屉：打开/关闭、搜索标签、多选标签、追加成功、错误 toast、窄屏布局。
+   - 手动检查项目表格时间：创建/更新列显示文件夹时间，不随打标签操作变化。

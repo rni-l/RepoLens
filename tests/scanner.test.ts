@@ -79,6 +79,29 @@ test("rescans preserve user-maintained project fields", async () => {
   assert.equal(rescanned.testCommandSource, "user");
 });
 
+test("service project lists refresh folder timestamps from the real filesystem", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-folder-time-refresh-"));
+  const dbPath = path.join(tempDir, "index.sqlite");
+  const projectPath = path.join(tempDir, "app");
+  await fs.mkdir(projectPath, { recursive: true });
+  await fs.writeFile(path.join(projectPath, "package.json"), JSON.stringify({ name: "app" }));
+  const actual = await extractProjectMetadata(projectPath, "scan");
+
+  const database = new RepoLensDatabase(dbPath);
+  const stale = database.upsertProject({
+    ...actual,
+    folderCreatedAt: "2020-01-01T00:00:00.000Z",
+    folderUpdatedAt: "2020-01-02T00:00:00.000Z"
+  }).project;
+  assert.equal(stale.createdAt, "2020-01-01T00:00:00.000Z");
+
+  const service = new RepoLensService(database);
+  const refreshed = (await service.listProjects()).find((project) => project.id === stale.id);
+  assert.equal(refreshed?.createdAt, actual.folderCreatedAt);
+  assert.equal(refreshed?.updatedAt, actual.folderUpdatedAt);
+  service.close();
+});
+
 test("service validates scan root folders before saving", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "repolens-root-"));
   const dbPath = path.join(tempDir, "index.sqlite");

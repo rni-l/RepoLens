@@ -77,12 +77,15 @@ export function ProjectTable({
                   }
                 }}
               >
-                <td className="col-check">
+                <td
+                  className="col-check"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     checked={selected.has(project.id)}
                     aria-label={`选择 ${project.name}`}
-                    onClick={(event) => event.stopPropagation()}
                     onChange={() => onToggleProject(project.id)}
                   />
                 </td>
@@ -91,7 +94,7 @@ export function ProjectTable({
                     <strong className="project-name">{project.favorite ? "★ " : ""}{project.name}</strong>
                     <span className="path">{project.path}</span>
                     <span className="mobile-meta">
-                      创建 {formatDateTime(project.createdAt)} · 更新 {formatDateTime(project.updatedAt)}
+                      文件夹创建 {formatDateTime(project.createdAt)} · 更新 {formatDateTime(project.updatedAt)}
                     </span>
                   </span>
                 </td>
@@ -106,7 +109,7 @@ export function ProjectTable({
                   </span>
                 </td>
                 <td className="col-status"><StatusBadge status={project.status} /></td>
-                <td className="col-time mono">{formatDateTime(project.createdAt)}</td>
+                <td className="col-time mono" title="真实文件夹创建时间">{formatDateTime(project.createdAt)}</td>
                 <td className="col-time mono">{formatDateTime(project.updatedAt)}</td>
                 <td className="col-open">
                   <ProjectRowActions

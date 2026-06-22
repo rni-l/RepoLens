@@ -198,7 +198,7 @@
     }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(240px, 1fr) auto;
+      grid-template-columns: 1fr;
       gap: var(--space-4);
       align-items: start;
       padding: var(--space-4);
@@ -206,6 +206,12 @@
       border-radius: var(--radius-lg);
       background: var(--bg);
       box-shadow: var(--elev-raised);
+    }
+    .toolbar-main {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: var(--space-4);
+      align-items: start;
     }
     .search-box {
       display: grid;
@@ -242,6 +248,132 @@
       border-color: color-mix(in oklab, var(--accent), transparent 48%);
       background: color-mix(in oklab, var(--accent), transparent 91%);
     }
+    .tag-filter-card {
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+    }
+    .filter-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+    .filter-head h2 { font-size: var(--text-xl); line-height: 1.25; }
+    .mode-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 34px;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--bg);
+      color: var(--fg-2);
+      font-size: var(--text-sm);
+      font-weight: 800;
+    }
+    .mode-toggle[aria-pressed="true"] {
+      color: var(--danger);
+      border-color: color-mix(in oklab, var(--danger), transparent 60%);
+      background: color-mix(in oklab, var(--danger), transparent 92%);
+    }
+    .tag-filter-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.3fr);
+      gap: var(--space-4);
+      align-items: start;
+    }
+    .tag-tree-select {
+      max-height: 214px;
+      overflow: auto;
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .tag-choice {
+      width: 100%;
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      gap: var(--space-2);
+      align-items: center;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      text-align: left;
+      color: var(--fg);
+    }
+    .tag-choice:hover { background: var(--surface); }
+    .tag-choice.is-selected {
+      border-color: color-mix(in oklab, var(--accent), transparent 58%);
+      background: color-mix(in oklab, var(--accent), transparent 93%);
+    }
+    .tag-choice input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .tag-choice-main { display: grid; gap: var(--space-1); min-width: 0; }
+    .tag-choice-main strong { font-size: var(--text-sm); }
+    .tag-choice-main small {
+      color: var(--muted);
+      font-size: var(--text-xs);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tag-count {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .selected-filter-panel {
+      min-height: 100%;
+      display: grid;
+      gap: var(--space-3);
+      align-content: start;
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .selected-filter-panel p { color: var(--muted); font-size: var(--text-sm); }
+    .selected-strip { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .tag-token {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 30px;
+      padding: 0 var(--space-2) 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--surface);
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+      font-weight: 800;
+    }
+    .tag-token button {
+      width: 20px;
+      height: 20px;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 900;
+    }
+    .tag-token button:hover { color: var(--danger); }
+    .filter-empty {
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
     .content-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
@@ -266,9 +398,23 @@
       background: var(--bg);
       box-shadow: var(--elev-raised);
     }
+    .selection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      box-shadow: var(--elev-raised);
+    }
+    .selection-bar[hidden] { display: none; }
+    .selection-bar div { display: grid; gap: var(--space-1); }
+    .selection-bar span { color: var(--muted); font-size: var(--text-sm); }
     .library-head, .project-row {
       display: grid;
-      grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.9fr) 112px 168px;
+      grid-template-columns: 36px minmax(220px, 1.28fr) minmax(180px, 0.9fr) minmax(136px, 0.7fr) 96px 168px;
       gap: var(--space-4);
       align-items: center;
     }
@@ -295,6 +441,8 @@
     .project-row:last-child { border-bottom: 0; }
     .project-row:hover, .project-row.is-selected { background: color-mix(in oklab, var(--accent), transparent 94%); }
     .project-row:focus-visible { outline: 0; box-shadow: inset var(--focus-ring); }
+    .row-select { display: flex; align-items: center; justify-content: center; }
+    .row-select input { width: 18px; height: 18px; accent-color: var(--accent); }
     .project-title { display: grid; gap: var(--space-1); min-width: 0; }
     .project-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .path {
@@ -332,6 +480,9 @@
     }
     .status.missing { background: color-mix(in oklab, var(--danger), transparent 90%); color: var(--danger); }
     .status.experimental { background: color-mix(in oklab, var(--warn), transparent 86%); color: color-mix(in oklab, var(--warn), var(--fg) 34%); }
+    .time-cell { display: grid; gap: var(--space-1); color: var(--fg-2); }
+    .time-cell strong { font-family: var(--font-mono); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+    .time-cell small { color: var(--muted); font-size: var(--text-xs); }
     .actions { display: flex; gap: var(--space-1); justify-content: flex-end; }
     .tool {
       width: 30px;
@@ -431,6 +582,65 @@
       transition: transform var(--motion-base) var(--ease-standard), opacity var(--motion-base) var(--ease-standard);
     }
     .toast.show { opacity: 1; transform: translateY(0); }
+    .drawer-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: color-mix(in oklab, var(--fg), transparent 78%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--motion-base) var(--ease-standard);
+    }
+    .drawer-scrim.show { opacity: 1; pointer-events: auto; }
+    .bulk-drawer {
+      position: fixed;
+      z-index: 31;
+      top: 0;
+      right: 0;
+      width: min(480px, 100vw);
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      box-shadow: 0 20px 60px color-mix(in oklab, var(--fg), transparent 84%);
+      transform: translateX(100%);
+      transition: transform var(--motion-base) var(--ease-standard);
+    }
+    .bulk-drawer.show { transform: translateX(0); }
+    .drawer-head, .drawer-foot {
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .drawer-head { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
+    .drawer-head h2 { font-size: var(--text-2xl); line-height: 1.2; }
+    .drawer-head p { margin-top: var(--space-1); color: var(--muted); font-size: var(--text-sm); }
+    .drawer-body {
+      min-height: 0;
+      overflow: auto;
+      display: grid;
+      gap: var(--space-4);
+      padding: var(--space-5);
+    }
+    .drawer-foot {
+      border-top: 1px solid var(--border);
+      border-bottom: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: var(--space-3);
+    }
+    .bulk-summary {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+    }
+    .bulk-summary span { color: var(--muted); font-size: var(--text-sm); }
+    .bulk-tag-tree { max-height: 340px; }
     @media (max-width: 1180px) {
       .app-shell { grid-template-columns: 72px minmax(0, 1fr); }
       .sidebar { padding: var(--space-4); align-items: center; }
@@ -439,8 +649,9 @@
     }
     @media (max-width: 980px) {
       .content-grid { grid-template-columns: 1fr; }
-      .toolbar { grid-template-columns: 1fr; }
+      .toolbar, .toolbar-main, .tag-filter-grid { grid-template-columns: 1fr; }
       .filters { justify-content: flex-start; }
+      .selection-bar { align-items: stretch; flex-direction: column; }
     }
     @media (max-width: 760px) {
       .app-shell { display: block; }
@@ -465,6 +676,7 @@
         gap: var(--space-3);
         align-items: start;
       }
+      .row-select { justify-content: flex-start; }
       .actions { justify-content: flex-start; flex-wrap: wrap; }
     }
     @media (max-width: 430px) {
@@ -490,7 +702,7 @@
         <a class="nav-item" href="tags.html">
           <span class="nav-ico">签</span><span>层级标签</span>
         </a>
-        <a class="nav-item" href="#">
+        <a class="nav-item" href="scan-sources-v1.html">
           <span class="nav-ico">缺</span><span>缺失路径</span>
         </a>
         <a class="nav-item" href="landing.html">
@@ -519,19 +731,44 @@
       </section>
 
       <section class="toolbar" data-od-id="filters">
-        <label class="search-box" aria-label="搜索项目">
-          <span aria-hidden="true">⌕</span>
-          <input id="project-search" type="search" placeholder="搜索名称、路径、标签、技术栈或启动命令" autocomplete="off" />
-        </label>
-        <div class="filters" aria-label="项目筛选">
-          <button class="chip is-active" type="button" data-filter="all">全部</button>
-          <button class="chip" type="button" data-filter="active">活跃</button>
-          <button class="chip" type="button" data-filter="experimental">实验</button>
-          <button class="chip" type="button" data-filter="missing">缺失</button>
-          <button class="chip" type="button" data-filter="favorite">收藏</button>
-          <button class="chip" type="button" data-filter="domain-water">业务域 / 水健康</button>
-          <button class="chip" type="button" data-filter="type-cli">项目类型 / CLI 工具</button>
+        <div class="toolbar-main">
+          <label class="search-box" aria-label="搜索项目">
+            <span aria-hidden="true">⌕</span>
+            <input id="project-search" type="search" placeholder="搜索名称、路径、标签、技术栈或启动命令" autocomplete="off" />
+          </label>
+          <div class="filters" aria-label="状态筛选">
+            <button class="chip is-active" type="button" data-filter="all">全部</button>
+            <button class="chip" type="button" data-filter="active">活跃</button>
+            <button class="chip" type="button" data-filter="experimental">实验</button>
+            <button class="chip" type="button" data-filter="missing">缺失</button>
+            <button class="chip" type="button" data-filter="favorite">收藏</button>
+          </div>
         </div>
+
+        <section class="tag-filter-card" data-od-id="tag-filter-tree" aria-label="层级标签筛选">
+          <div class="filter-head">
+            <div>
+              <h2>层级标签筛选</h2>
+              <p id="tag-mode-copy">包含任一选中标签及其子孙标签。</p>
+            </div>
+            <button class="mode-toggle" type="button" id="exclude-toggle" aria-pressed="false">反选排除</button>
+          </div>
+          <div class="tag-filter-grid">
+            <div>
+              <label class="search-box" aria-label="搜索筛选标签">
+                <span aria-hidden="true">⌕</span>
+                <input id="tag-filter-search" type="search" placeholder="搜索标签名称或完整路径" autocomplete="off" />
+              </label>
+              <div class="tag-tree-select" id="tag-filter-tree" role="group" aria-label="可筛选标签"></div>
+            </div>
+            <div class="selected-filter-panel">
+              <strong id="tag-filter-status">未选择标签</strong>
+              <p id="tag-filter-summary">当前只按关键字和状态筛选；未打标签项目会正常保留。</p>
+              <div class="selected-strip" id="selected-tag-strip"></div>
+              <button class="btn" type="button" id="clear-tags-btn">清空标签筛选</button>
+            </div>
+          </div>
+        </section>
       </section>
 
       <div class="content-grid">
@@ -551,88 +788,24 @@
             </article>
           </section>
 
+          <section class="selection-bar" id="selection-bar" data-od-id="bulk-tag-entry" hidden>
+            <div>
+              <strong id="selection-count">已选择 0 个项目</strong>
+              <span>批量操作只追加标签，不覆盖项目已有标签。</span>
+            </div>
+            <button class="btn btn-primary" type="button" id="open-bulk-drawer">打开批量打标</button>
+          </section>
+
           <section class="library" data-od-id="project-library" aria-label="项目列表">
             <div class="library-head" aria-hidden="true">
+              <span></span>
               <span>项目</span>
               <span>层级标签</span>
+              <span>文件夹时间</span>
               <span>状态</span>
               <span>打开方式</span>
             </div>
-            <article class="project-row is-selected" role="button" tabindex="0" data-id="water" data-status="active" data-tags="业务域 水健康 数据转换 项目类型 CLI 工具 维护状态 高频使用 typescript vite transform feishu">
-              <span class="project-title">
-                <strong>water-product-transform-info</strong>
-                <span class="path">/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info</span>
-              </span>
-              <span class="tags"><span class="tag" title="业务域 / 水健康 / 数据转换">数据转换</span><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span><span class="tag" title="维护状态 / 高频使用">高频使用</span></span>
-              <span class="status">活跃</span>
-              <span class="actions">
-                <button class="tool" type="button" title="文件夹">F</button>
-                <button class="tool" type="button" title="终端">T</button>
-                <button class="tool" type="button" title="iTerm2">iT</button>
-                <button class="tool" type="button" title="VS Code">VS</button>
-                <button class="tool" type="button" title="Cursor">C</button>
-              </span>
-            </article>
-            <article class="project-row" role="button" tabindex="0" data-id="todo" data-status="active" data-tags="项目类型 Web App 维护状态 自用核心 node react todo pm2">
-              <span class="project-title">
-                <strong>myself-todo</strong>
-                <span class="path">/Users/ddd/Documents/myself-todo</span>
-              </span>
-              <span class="tags"><span class="tag" title="项目类型 / Web App">Web App</span><span class="tag" title="维护状态 / 自用核心">自用核心</span></span>
-              <span class="status">活跃</span>
-              <span class="actions">
-                <button class="tool" type="button" title="文件夹">F</button>
-                <button class="tool" type="button" title="终端">T</button>
-                <button class="tool" type="button" title="iTerm2">iT</button>
-                <button class="tool" type="button" title="VS Code">VS</button>
-                <button class="tool" type="button" title="Cursor">C</button>
-              </span>
-            </article>
-            <article class="project-row" role="button" tabindex="0" data-id="clean" data-status="experimental" data-tags="业务域 清洁客服 训练数据 项目类型 CLI 工具 jsonl training map node">
-              <span class="project-title">
-                <strong>clean-transform-info</strong>
-                <span class="path">/Users/ddd/D/feiyu/清洁客服/code/clean-transform-info</span>
-              </span>
-              <span class="tags"><span class="tag" title="业务域 / 清洁客服 / 训练数据">训练数据</span><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span></span>
-              <span class="status experimental">实验</span>
-              <span class="actions">
-                <button class="tool" type="button" title="文件夹">F</button>
-                <button class="tool" type="button" title="终端">T</button>
-                <button class="tool" type="button" title="iTerm2">iT</button>
-                <button class="tool" type="button" title="VS Code">VS</button>
-                <button class="tool" type="button" title="Cursor">C</button>
-              </span>
-            </article>
-            <article class="project-row" role="button" tabindex="0" data-id="rag" data-status="active" data-tags="项目类型 CLI 工具 维护状态 高频使用 rag xlsx tsx tests">
-              <span class="project-title">
-                <strong>rag-agent</strong>
-                <span class="path">/Users/ddd/Documents/rag-agent</span>
-              </span>
-              <span class="tags"><span class="tag" title="项目类型 / CLI 工具">CLI 工具</span><span class="tag" title="维护状态 / 高频使用">高频使用</span></span>
-              <span class="status">活跃</span>
-              <span class="actions">
-                <button class="tool" type="button" title="文件夹">F</button>
-                <button class="tool" type="button" title="终端">T</button>
-                <button class="tool" type="button" title="iTerm2">iT</button>
-                <button class="tool" type="button" title="VS Code">VS</button>
-                <button class="tool" type="button" title="Cursor">C</button>
-              </span>
-            </article>
-            <article class="project-row" role="button" tabindex="0" data-id="legacy" data-status="missing" data-tags="未归类 archive php client">
-              <span class="project-title">
-                <strong>legacy-client-site</strong>
-                <span class="path">/Users/ddd/Archive/client/legacy-client-site</span>
-              </span>
-              <span class="tags"><span class="tag">未归类</span></span>
-              <span class="status missing">缺失</span>
-              <span class="actions">
-                <button class="tool" type="button" title="文件夹" disabled>F</button>
-                <button class="tool" type="button" title="终端" disabled>T</button>
-                <button class="tool" type="button" title="iTerm2" disabled>iT</button>
-                <button class="tool" type="button" title="VS Code" disabled>VS</button>
-                <button class="tool" type="button" title="Cursor" disabled>C</button>
-              </span>
-            </article>
+            <div id="project-list"></div>
           </section>
         </div>
 
@@ -702,51 +875,130 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite">已完成</div>
 
+  <div class="drawer-scrim" id="drawer-scrim" aria-hidden="true"></div>
+  <aside class="bulk-drawer" id="bulk-drawer" aria-label="批量追加标签" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <h2>批量追加标签</h2>
+        <p id="bulk-project-copy">选择项目后，从这里追加层级标签。</p>
+      </div>
+      <button class="btn" type="button" id="close-bulk-drawer">关闭</button>
+    </div>
+    <div class="drawer-body">
+      <div class="bulk-summary">
+        <strong id="bulk-summary-title">未选择标签</strong>
+        <span id="bulk-summary-copy">勾选标签后，底部按钮会为已选项目追加标签。</span>
+        <div class="selected-strip" id="bulk-selected-strip"></div>
+      </div>
+      <label class="search-box" aria-label="搜索批量标签">
+        <span aria-hidden="true">⌕</span>
+        <input id="bulk-tag-search" type="search" placeholder="搜索要追加的标签路径" autocomplete="off" />
+      </label>
+      <div class="tag-tree-select bulk-tag-tree" id="bulk-tag-tree" role="group" aria-label="批量可追加标签"></div>
+    </div>
+    <div class="drawer-foot">
+      <button class="btn" type="button" id="clear-bulk-tags">清除选择</button>
+      <button class="btn btn-primary" type="button" id="apply-bulk-tags" disabled>追加标签</button>
+    </div>
+  </aside>
+
   <script>
+    const tags = [
+      { id: "domain", name: "业务域", parentId: null, path: "业务域" },
+      { id: "domain-water", name: "水健康", parentId: "domain", path: "业务域 / 水健康" },
+      { id: "domain-water-transform", name: "数据转换", parentId: "domain-water", path: "业务域 / 水健康 / 数据转换" },
+      { id: "domain-clean", name: "清洁客服", parentId: "domain", path: "业务域 / 清洁客服" },
+      { id: "domain-clean-training", name: "训练数据", parentId: "domain-clean", path: "业务域 / 清洁客服 / 训练数据" },
+      { id: "type", name: "项目类型", parentId: null, path: "项目类型" },
+      { id: "type-cli", name: "CLI 工具", parentId: "type", path: "项目类型 / CLI 工具" },
+      { id: "type-web", name: "Web App", parentId: "type", path: "项目类型 / Web App" },
+      { id: "status", name: "维护状态", parentId: null, path: "维护状态" },
+      { id: "status-hot", name: "高频使用", parentId: "status", path: "维护状态 / 高频使用" },
+      { id: "status-personal", name: "自用核心", parentId: "status", path: "维护状态 / 自用核心" },
+      { id: "tech", name: "技术栈", parentId: null, path: "技术栈" },
+      { id: "tech-typescript", name: "TypeScript", parentId: "tech", path: "技术栈 / TypeScript" },
+      { id: "tech-tauri", name: "Tauri", parentId: "tech", path: "技术栈 / Tauri" }
+    ];
+
+    tags.forEach((tag) => {
+      let depth = 0;
+      let current = tag;
+      while (current.parentId) {
+        depth += 1;
+        current = tags.find((item) => item.id === current.parentId);
+      }
+      tag.depth = depth;
+    });
+
     const projects = {
       water: {
         name: "water-product-transform-info",
         path: "/Users/ddd/D/feiyu/水健康-客服/code/water-product-transform-info",
+        status: "active",
+        statusText: "活跃",
+        favorite: true,
         description: "水健康客服数据转换工具，负责把产品资料转换成训练与知识库需要的结构化结果。",
         start: "pnpm dev",
         test: "pnpm test",
-        tags: ["业务域 / 水健康 / 数据转换", "项目类型 / CLI 工具", "维护状态 / 高频使用"]
+        folderCreatedAt: "2026-03-18",
+        folderUpdatedAt: "今天 09:42",
+        tagIds: ["domain-water-transform", "type-cli", "status-hot", "tech-typescript"]
       },
       todo: {
         name: "myself-todo",
         path: "/Users/ddd/Documents/myself-todo",
+        status: "active",
+        statusText: "活跃",
+        favorite: false,
         description: "个人任务管理应用，包含今日工作台、任务详情、快速添加和报告页。",
         start: "npm run dev",
         test: "npm test",
-        tags: ["项目类型 / Web App", "维护状态 / 自用核心"]
+        folderCreatedAt: "2025-12-04",
+        folderUpdatedAt: "昨天 21:16",
+        tagIds: ["type-web", "status-personal"]
       },
       clean: {
         name: "clean-transform-info",
         path: "/Users/ddd/D/feiyu/清洁客服/code/clean-transform-info",
+        status: "experimental",
+        statusText: "实验",
+        favorite: false,
         description: "清洁客服资料转换流程，输出 JSONL 批处理结果并对接训练映射。",
         start: "pnpm start",
         test: "pnpm test",
-        tags: ["业务域 / 清洁客服 / 训练数据", "项目类型 / CLI 工具"]
+        folderCreatedAt: "2026-01-26",
+        folderUpdatedAt: "6 月 18 日",
+        tagIds: ["domain-clean-training", "type-cli"]
       },
       rag: {
         name: "rag-agent",
         path: "/Users/ddd/Documents/rag-agent",
+        status: "active",
+        statusText: "活跃",
+        favorite: false,
         description: "基于表格用例驱动的 RAG 回归测试与产品参数问答实验工程。",
         start: "pnpm dev",
         test: "node --import tsx --test",
-        tags: ["项目类型 / CLI 工具", "维护状态 / 高频使用"]
+        folderCreatedAt: "2026-02-11",
+        folderUpdatedAt: "今天 08:20",
+        tagIds: ["type-cli", "status-hot", "tech-typescript"]
       },
       legacy: {
         name: "legacy-client-site",
         path: "/Users/ddd/Archive/client/legacy-client-site",
+        status: "missing",
+        statusText: "缺失",
+        favorite: false,
         description: "历史客户站点记录，当前路径缺失，保留人工备注等待确认。",
         start: "",
         test: "",
-        tags: ["未归类"]
+        folderCreatedAt: "2024-08-09",
+        folderUpdatedAt: "路径缺失",
+        tagIds: []
       }
     };
 
-    const rows = Array.from(document.querySelectorAll(".project-row"));
+    const projectList = document.querySelector("#project-list");
     const detailName = document.querySelector("#detail-name");
     const detailPath = document.querySelector("#detail-path");
     const detailDescription = document.querySelector("#detail-description");
@@ -754,15 +1006,78 @@
     const detailTest = document.querySelector("#detail-test");
     const detailTags = document.querySelector("#detail-tags");
     const search = document.querySelector("#project-search");
+    const tagFilterSearch = document.querySelector("#tag-filter-search");
+    const tagFilterTree = document.querySelector("#tag-filter-tree");
+    const selectedTagStrip = document.querySelector("#selected-tag-strip");
+    const tagFilterStatus = document.querySelector("#tag-filter-status");
+    const tagFilterSummary = document.querySelector("#tag-filter-summary");
+    const tagModeCopy = document.querySelector("#tag-mode-copy");
+    const excludeToggle = document.querySelector("#exclude-toggle");
+    const selectionBar = document.querySelector("#selection-bar");
+    const selectionCount = document.querySelector("#selection-count");
+    const drawer = document.querySelector("#bulk-drawer");
+    const drawerScrim = document.querySelector("#drawer-scrim");
+    const bulkProjectCopy = document.querySelector("#bulk-project-copy");
+    const bulkTagSearch = document.querySelector("#bulk-tag-search");
+    const bulkTagTree = document.querySelector("#bulk-tag-tree");
+    const bulkSelectedStrip = document.querySelector("#bulk-selected-strip");
+    const bulkSummaryTitle = document.querySelector("#bulk-summary-title");
+    const bulkSummaryCopy = document.querySelector("#bulk-summary-copy");
+    const applyBulkTagsButton = document.querySelector("#apply-bulk-tags");
     const visibleCount = document.querySelector("#visible-count");
     const issueCount = document.querySelector("#issue-count");
     const toast = document.querySelector("#toast");
-    const tagFilterNeedles = {
-      "domain-water": "业务域 水健康",
-      "type-cli": "项目类型 cli 工具"
-    };
     let activeFilter = "all";
     let activeProject = "water";
+    const selectedFilterTagIds = new Set();
+    const selectedProjectIds = new Set();
+    const selectedBulkTagIds = new Set();
+    let excludeMode = false;
+    let visibleProjectIds = [];
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function getTag(id) {
+      return tags.find((tag) => tag.id === id);
+    }
+
+    function getProjectTags(project) {
+      return project.tagIds.map(getTag).filter(Boolean);
+    }
+
+    function descendantsOf(tagId) {
+      const tag = getTag(tagId);
+      if (!tag) return [];
+      return tags.filter((item) => item.id === tag.id || item.path.startsWith(`${tag.path} /`));
+    }
+
+    function ancestorsOf(tag) {
+      const result = [];
+      let current = tag;
+      while (current?.parentId) {
+        current = getTag(current.parentId);
+        if (current) result.push(current);
+      }
+      return result;
+    }
+
+    function projectMatchesTagSet(project, selectedIds) {
+      if (selectedIds.size === 0) return true;
+      const subtreeIds = new Set([...selectedIds].flatMap((id) => descendantsOf(id).map((tag) => tag.id)));
+      const hasMatch = project.tagIds.some((tagId) => subtreeIds.has(tagId));
+      return excludeMode ? !hasMatch : hasMatch;
+    }
+
+    function projectCountForTag(tagId) {
+      const subtreeIds = new Set(descendantsOf(tagId).map((tag) => tag.id));
+      return Object.values(projects).filter((project) => project.tagIds.some((id) => subtreeIds.has(id))).length;
+    }
 
     function showToast(message) {
       toast.textContent = message;
@@ -779,64 +1094,267 @@
       detailDescription.value = project.description;
       detailStart.value = project.start;
       detailTest.value = project.test;
-      detailTags.innerHTML = project.tags.map((tag) => `<span class="tag" title="${tag}">${tag}</span>`).join("");
+      const projectTags = getProjectTags(project);
+      detailTags.innerHTML = projectTags.length
+        ? projectTags.map((tag) => `<span class="tag" title="${escapeHtml(tag.path)}">${escapeHtml(tag.path)}</span>`).join("")
+        : `<span class="tag">未归类</span>`;
     }
 
-    function applyFilters() {
+    function renderTagFilterTree() {
+      const query = tagFilterSearch.value.trim().toLowerCase();
+      const visibleIds = new Set();
+      tags.forEach((tag) => {
+        const matched = !query || tag.name.toLowerCase().includes(query) || tag.path.toLowerCase().includes(query);
+        if (!matched) return;
+        visibleIds.add(tag.id);
+        ancestorsOf(tag).forEach((ancestor) => visibleIds.add(ancestor.id));
+        descendantsOf(tag.id).forEach((child) => visibleIds.add(child.id));
+      });
+      const visibleTags = tags.filter((tag) => visibleIds.has(tag.id));
+      tagFilterTree.innerHTML = visibleTags.length ? visibleTags.map((tag) => {
+        const checked = selectedFilterTagIds.has(tag.id);
+        return `<label class="tag-choice ${checked ? "is-selected" : ""}" style="padding-left: calc(var(--space-3) + ${tag.depth * 14}px)">
+          <input type="checkbox" ${checked ? "checked" : ""} data-filter-tag="${tag.id}" />
+          <span class="tag-choice-main">
+            <strong>${escapeHtml(tag.name)}</strong>
+            <small title="${escapeHtml(tag.path)}">${escapeHtml(tag.path)}</small>
+          </span>
+          <span class="tag-count">${projectCountForTag(tag.id)}</span>
+        </label>`;
+      }).join("") : `<div class="filter-empty">没有匹配标签。清空搜索后再试。</div>`;
+    }
+
+    function renderFilterSummary() {
+      const selectedTags = [...selectedFilterTagIds].map(getTag).filter(Boolean);
+      tagModeCopy.textContent = excludeMode
+        ? "排除任一选中标签及其子孙标签；未打标签项目保留。"
+        : "包含任一选中标签及其子孙标签。";
+      excludeToggle.setAttribute("aria-pressed", String(excludeMode));
+      tagFilterStatus.textContent = selectedTags.length
+        ? `${excludeMode ? "排除" : "包含"} ${selectedTags.length} 个标签路径`
+        : "未选择标签";
+      tagFilterSummary.textContent = selectedTags.length
+        ? (excludeMode ? "列表会先应用关键字和状态筛选，再排除命中这些标签子树的项目。" : "列表会显示命中任一所选标签子树的项目。")
+        : "当前只按关键字和状态筛选；未打标签项目会正常保留。";
+      selectedTagStrip.innerHTML = selectedTags.length ? selectedTags.map((tag) => `
+        <span class="tag-token">${escapeHtml(tag.path)}<button type="button" aria-label="移除 ${escapeHtml(tag.name)}" data-remove-filter-tag="${tag.id}">×</button></span>
+      `).join("") : `<span class="filter-empty">选择父级标签会自动包含子孙标签。</span>`;
+    }
+
+    function renderBulkTagTree() {
+      const query = bulkTagSearch.value.trim().toLowerCase();
+      const visibleIds = new Set();
+      tags.forEach((tag) => {
+        const matched = !query || tag.name.toLowerCase().includes(query) || tag.path.toLowerCase().includes(query);
+        if (!matched) return;
+        visibleIds.add(tag.id);
+        ancestorsOf(tag).forEach((ancestor) => visibleIds.add(ancestor.id));
+        descendantsOf(tag.id).forEach((child) => visibleIds.add(child.id));
+      });
+      const visibleTags = tags.filter((tag) => visibleIds.has(tag.id));
+      bulkTagTree.innerHTML = visibleTags.length ? visibleTags.map((tag) => {
+        const checked = selectedBulkTagIds.has(tag.id);
+        return `<label class="tag-choice ${checked ? "is-selected" : ""}" style="padding-left: calc(var(--space-3) + ${tag.depth * 14}px)">
+          <input type="checkbox" ${checked ? "checked" : ""} data-bulk-tag="${tag.id}" />
+          <span class="tag-choice-main">
+            <strong>${escapeHtml(tag.name)}</strong>
+            <small title="${escapeHtml(tag.path)}">${escapeHtml(tag.path)}</small>
+          </span>
+          <span class="tag-count">${projectCountForTag(tag.id)}</span>
+        </label>`;
+      }).join("") : `<div class="filter-empty">没有匹配可追加标签。清空搜索后再试。</div>`;
+
+      const selectedTags = [...selectedBulkTagIds].map(getTag).filter(Boolean);
+      bulkSelectedStrip.innerHTML = selectedTags.length ? selectedTags.map((tag) => `
+        <span class="tag-token">${escapeHtml(tag.path)}<button type="button" aria-label="移除 ${escapeHtml(tag.name)}" data-remove-bulk-tag="${tag.id}">×</button></span>
+      `).join("") : `<span class="filter-empty">尚未选择要追加的标签。</span>`;
+      bulkSummaryTitle.textContent = selectedTags.length ? `将追加 ${selectedTags.length} 个标签` : "未选择标签";
+      bulkSummaryCopy.textContent = `${selectedProjectIds.size} 个项目已选中；追加时会跳过已有标签。`;
+      applyBulkTagsButton.disabled = selectedProjectIds.size === 0 || selectedBulkTagIds.size === 0;
+    }
+
+    function renderProjects() {
       const query = search.value.trim().toLowerCase();
       let visible = 0;
       let missing = 0;
-      rows.forEach((row) => {
-        const status = row.dataset.status;
-        const haystack = `${row.textContent} ${row.dataset.tags}`.toLowerCase();
+      visibleProjectIds = [];
+      projectList.innerHTML = Object.entries(projects).map(([id, project]) => {
+        const projectTags = getProjectTags(project);
+        const tagCopy = projectTags.map((tag) => tag.path).join(" ");
+        const haystack = `${project.name} ${project.path} ${project.description} ${tagCopy} ${project.statusText} ${project.start} ${project.test}`.toLowerCase();
         const matchesQuery = !query || haystack.includes(query);
-        const matchesTagFilter = tagFilterNeedles[activeFilter] ? haystack.includes(tagFilterNeedles[activeFilter]) : false;
-        const matchesFilter = activeFilter === "all" || status === activeFilter || matchesTagFilter || (activeFilter === "favorite" && row.dataset.id === "water");
-        const shouldShow = matchesQuery && matchesFilter;
-        row.hidden = !shouldShow;
+        const matchesFilter = activeFilter === "all" || project.status === activeFilter || (activeFilter === "favorite" && project.favorite);
+        const matchesTags = projectMatchesTagSet(project, selectedFilterTagIds);
+        const shouldShow = matchesQuery && matchesFilter && matchesTags;
         if (shouldShow) visible += 1;
-        if (shouldShow && status === "missing") missing += 1;
-      });
+        if (shouldShow && project.status === "missing") missing += 1;
+        if (shouldShow) visibleProjectIds.push(id);
+        const statusClass = project.status === "missing" ? " missing" : project.status === "experimental" ? " experimental" : "";
+        const checked = selectedProjectIds.has(id);
+        const disabled = project.status === "missing" ? "disabled" : "";
+        return `<article class="project-row ${id === activeProject ? "is-selected" : ""}" ${shouldShow ? "" : "hidden"} role="button" tabindex="0" data-id="${id}">
+          <span class="row-select"><input type="checkbox" data-row-check="${id}" ${checked ? "checked" : ""} aria-label="选择 ${escapeHtml(project.name)}" /></span>
+          <span class="project-title">
+            <strong>${escapeHtml(project.name)}</strong>
+            <span class="path">${escapeHtml(project.path)}</span>
+          </span>
+          <span class="tags">${projectTags.length ? projectTags.map((tag) => `<span class="tag" title="${escapeHtml(tag.path)}">${escapeHtml(tag.name)}</span>`).join("") : `<span class="tag">未归类</span>`}</span>
+          <span class="time-cell"><strong>${escapeHtml(project.folderUpdatedAt)}</strong><small>创建 ${escapeHtml(project.folderCreatedAt)}</small></span>
+          <span class="status${statusClass}">${escapeHtml(project.statusText)}</span>
+          <span class="actions">
+            <button class="tool" type="button" title="文件夹" ${disabled}>F</button>
+            <button class="tool" type="button" title="终端" ${disabled}>T</button>
+            <button class="tool" type="button" title="iTerm2" ${disabled}>iT</button>
+            <button class="tool" type="button" title="VS Code" ${disabled}>VS</button>
+            <button class="tool" type="button" title="Cursor" ${disabled}>C</button>
+          </span>
+        </article>`;
+      }).join("");
       visibleCount.textContent = String(visible);
       issueCount.textContent = String(missing);
+      renderSelectionBar();
     }
 
-    rows.forEach((row) => {
-      function selectRow() {
-        rows.forEach((item) => item.classList.remove("is-selected"));
-        row.classList.add("is-selected");
-        renderDetail(row.dataset.id);
-      }
-      row.addEventListener("click", (event) => {
-        if (event.target.closest(".tool")) return;
-        selectRow();
-      });
-      row.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          selectRow();
-        }
-      });
-    });
+    function renderSelectionBar() {
+      selectionBar.hidden = selectedProjectIds.size === 0;
+      selectionCount.textContent = `已选择 ${selectedProjectIds.size} 个项目`;
+      bulkProjectCopy.textContent = `已选择 ${selectedProjectIds.size} 个项目，批量追加不会覆盖已有标签。`;
+      renderBulkTagTree();
+    }
 
-    document.querySelectorAll(".tool").forEach((tool) => {
-      tool.addEventListener("click", () => {
-        const row = tool.closest(".project-row");
-        const project = projects[row.dataset.id];
-        showToast(`将用 ${tool.title} 打开 ${project.name}`);
-      });
-    });
+    function toggleDrawer(open) {
+      drawer.classList.toggle("show", open);
+      drawerScrim.classList.toggle("show", open);
+      drawer.setAttribute("aria-hidden", String(!open));
+      drawerScrim.setAttribute("aria-hidden", String(!open));
+      if (open) bulkTagSearch.focus();
+    }
 
     document.querySelectorAll("[data-filter]").forEach((chip) => {
       chip.addEventListener("click", () => {
         document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("is-active"));
         chip.classList.add("is-active");
         activeFilter = chip.dataset.filter;
-        applyFilters();
+        renderProjects();
       });
     });
 
-    search.addEventListener("input", applyFilters);
+    projectList.addEventListener("click", (event) => {
+      const tool = event.target.closest(".tool");
+      const checkbox = event.target.closest("[data-row-check]");
+      const row = event.target.closest(".project-row");
+      if (!row) return;
+      const project = projects[row.dataset.id];
+      if (tool) {
+        showToast(`将用 ${tool.title} 打开 ${project.name}`);
+        return;
+      }
+      if (checkbox) {
+        if (checkbox.checked) selectedProjectIds.add(checkbox.dataset.rowCheck);
+        else selectedProjectIds.delete(checkbox.dataset.rowCheck);
+        renderSelectionBar();
+        return;
+      }
+      activeProject = row.dataset.id;
+      renderDetail(activeProject);
+      renderProjects();
+    });
+
+    projectList.addEventListener("keydown", (event) => {
+      const row = event.target.closest(".project-row");
+      if (!row || event.target.closest("[data-row-check]")) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activeProject = row.dataset.id;
+        renderDetail(activeProject);
+        renderProjects();
+      }
+    });
+
+    tagFilterTree.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-filter-tag]");
+      if (!button) return;
+      const tagId = button.dataset.filterTag;
+      if (selectedFilterTagIds.has(tagId)) selectedFilterTagIds.delete(tagId);
+      else selectedFilterTagIds.add(tagId);
+      renderTagFilterTree();
+      renderFilterSummary();
+      renderProjects();
+    });
+
+    selectedTagStrip.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-filter-tag]");
+      if (!button) return;
+      selectedFilterTagIds.delete(button.dataset.removeFilterTag);
+      renderTagFilterTree();
+      renderFilterSummary();
+      renderProjects();
+    });
+
+    bulkTagTree.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-bulk-tag]");
+      if (!button) return;
+      const tagId = button.dataset.bulkTag;
+      if (selectedBulkTagIds.has(tagId)) selectedBulkTagIds.delete(tagId);
+      else selectedBulkTagIds.add(tagId);
+      renderBulkTagTree();
+    });
+
+    bulkSelectedStrip.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-bulk-tag]");
+      if (!button) return;
+      selectedBulkTagIds.delete(button.dataset.removeBulkTag);
+      renderBulkTagTree();
+    });
+
+    search.addEventListener("input", renderProjects);
+    tagFilterSearch.addEventListener("input", renderTagFilterTree);
+    bulkTagSearch.addEventListener("input", renderBulkTagTree);
+
+    excludeToggle.addEventListener("click", () => {
+      excludeMode = !excludeMode;
+      renderFilterSummary();
+      renderProjects();
+      showToast(excludeMode ? "已切换为排除所选标签子树" : "已切换为包含所选标签子树");
+    });
+
+    document.querySelector("#clear-tags-btn").addEventListener("click", () => {
+      selectedFilterTagIds.clear();
+      renderTagFilterTree();
+      renderFilterSummary();
+      renderProjects();
+    });
+
+    document.querySelector("#open-bulk-drawer").addEventListener("click", () => toggleDrawer(true));
+    document.querySelector("#close-bulk-drawer").addEventListener("click", () => toggleDrawer(false));
+    drawerScrim.addEventListener("click", () => toggleDrawer(false));
+    document.querySelector("#clear-bulk-tags").addEventListener("click", () => {
+      selectedBulkTagIds.clear();
+      renderBulkTagTree();
+    });
+    applyBulkTagsButton.addEventListener("click", () => {
+      let appended = 0;
+      selectedProjectIds.forEach((projectId) => {
+        const project = projects[projectId];
+        selectedBulkTagIds.forEach((tagId) => {
+          if (!project.tagIds.includes(tagId)) {
+            project.tagIds.push(tagId);
+            appended += 1;
+          }
+        });
+      });
+      renderDetail(activeProject);
+      renderTagFilterTree();
+      renderFilterSummary();
+      renderProjects();
+      renderBulkTagTree();
+      showToast(appended ? `已追加 ${appended} 条标签关联` : "所选项目已包含这些标签");
+      toggleDrawer(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") toggleDrawer(false);
+    });
 
     document.querySelector("#copy-path").addEventListener("click", async () => {
       const value = projects[activeProject].path;
@@ -875,7 +1393,10 @@
     document.querySelector("#scan-btn").addEventListener("click", runScan);
     document.querySelector("#sidebar-scan-btn").addEventListener("click", runScan);
     document.querySelector("#add-root-btn").addEventListener("click", () => showToast("将打开系统文件夹选择器"));
-    applyFilters();
+    renderTagFilterTree();
+    renderFilterSummary();
+    renderProjects();
+    renderDetail(activeProject);
   </script>
 </body>
 </html>

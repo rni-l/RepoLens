@@ -40,6 +40,8 @@ async function dispatch(request: CliRequest): Promise<unknown> {
       return service.createTag((args.input ?? {}) as never);
     case "update_tag":
       return service.updateTag(String(args.id), (args.patch ?? {}) as never);
+    case "move_tag":
+      return service.moveTag(String(args.id), args.direction as never);
     case "delete_tag":
       return service.deleteTag(String(args.id));
     case "get_ai_tagging_status":

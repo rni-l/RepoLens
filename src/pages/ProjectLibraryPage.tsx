@@ -1,9 +1,9 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { FolderPlus, RefreshCw, Search, Settings, Tags, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FolderPlus, RefreshCw, Search, Settings, Tags, X } from "lucide-react";
 import { ProjectDetailPanel } from "../components/ProjectDetailPanel";
-import { ProjectSearchBar, type FilterKey } from "../components/ProjectSearchBar";
+import { ProjectSearchBar, type FilterKey, type TagFilterMode } from "../components/ProjectSearchBar";
 import { ProjectTable } from "../components/ProjectTable";
-import { ProjectTagPicker } from "../components/ProjectTagPicker";
+import { TagTreeSelector } from "../components/TagTreeSelector";
 import { pruneSelectedTagIds } from "../lib/tagState";
 import { api } from "../lib/tauri";
 import type {
@@ -16,6 +16,7 @@ import type {
   ScanRoot,
   ScanSummary,
   TagCreateInput,
+  TagMoveDirection,
   TagNode,
   TagUpdatePatch
 } from "../lib/types";
@@ -49,6 +50,8 @@ export function ProjectLibraryPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>("include");
+  const [isBulkTagDrawerOpen, setIsBulkTagDrawerOpen] = useState(false);
   const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const [toast, setToast] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -57,15 +60,16 @@ export function ProjectLibraryPage() {
   const selectedProjectId = selectedProject?.id ?? null;
 
   const filters = useMemo<ProjectFilters>(() => {
-    const tagIds = selectedTagIds.length ? selectedTagIds : undefined;
+    const tagIds = tagFilterMode === "include" && selectedTagIds.length ? selectedTagIds : undefined;
+    const excludedTagIds = tagFilterMode === "exclude" && selectedTagIds.length ? selectedTagIds : undefined;
     if (filter === "favorite") {
-      return { query, favoriteOnly: true, tagIds };
+      return { query, favoriteOnly: true, tagIds, excludedTagIds };
     }
     if (filter === "all") {
-      return { query, tagIds };
+      return { query, tagIds, excludedTagIds };
     }
-    return { query, statuses: [filter], tagIds };
-  }, [filter, query, selectedTagIds]);
+    return { query, statuses: [filter], tagIds, excludedTagIds };
+  }, [filter, query, selectedTagIds, tagFilterMode]);
 
   const loadProjectList = useCallback(async () => {
     const projectList = await api.listProjects(filters);
@@ -116,6 +120,12 @@ export function ProjectLibraryPage() {
   }, [loadProjectList]);
 
   useEffect(() => {
+    if (!selectedProjectIds.length) {
+      setIsBulkTagDrawerOpen(false);
+    }
+  }, [selectedProjectIds.length]);
+
+  useEffect(() => {
     if (window.location.hash) {
       window.history.replaceState(null, "", pathForRoute(routeFromLocation()));
     }
@@ -149,6 +159,8 @@ export function ProjectLibraryPage() {
     setSelectedProjectIds((current) =>
       current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId]
     );
+    setSelectedProject(null);
+    setIsBulkTagDrawerOpen(true);
   }
 
   function toggleAllVisibleProjects() {
@@ -160,6 +172,8 @@ export function ProjectLibraryPage() {
       }
       return Array.from(new Set([...current, ...visibleIds]));
     });
+    setSelectedProject(null);
+    setIsBulkTagDrawerOpen(!allVisibleSelected && visibleIds.length > 0);
   }
 
   async function applyBulkTags() {
@@ -180,6 +194,7 @@ export function ProjectLibraryPage() {
       });
       setSelectedProjectIds([]);
       setBulkTagIds([]);
+      setIsBulkTagDrawerOpen(false);
       await load();
       showToast(`已为 ${result.updatedCount} 个项目追加标签`);
     } catch (error) {
@@ -255,6 +270,17 @@ export function ProjectLibraryPage() {
       await api.updateTag(id, patch);
       await load();
       showToast("标签已更新");
+    } catch (error) {
+      showToast(errorMessage(error));
+    }
+  }
+
+  async function moveTag(id: string, direction: TagMoveDirection) {
+    try {
+      const tagList = await api.moveTag(id, direction);
+      setTags(tagList);
+      await load();
+      showToast("标签排序已更新");
     } catch (error) {
       showToast(errorMessage(error));
     }
@@ -340,6 +366,8 @@ export function ProjectLibraryPage() {
           selectedProject={selectedProject}
           selectedProjectIds={selectedProjectIds}
           bulkTagIds={bulkTagIds}
+          tagFilterMode={tagFilterMode}
+          isBulkTagDrawerOpen={isBulkTagDrawerOpen}
           query={query}
           filter={filter}
           selectedTagIds={selectedTagIds}
@@ -353,11 +381,15 @@ export function ProjectLibraryPage() {
           onQueryChange={setQuery}
           onFilterChange={setFilter}
           onTagFilterChange={setSelectedTagIds}
+          onTagFilterModeChange={setTagFilterMode}
           onBulkTagChange={setBulkTagIds}
           onApplyBulkTags={() => void applyBulkTags()}
+          onOpenBulkTagDrawer={() => setIsBulkTagDrawerOpen(true)}
+          onCloseBulkTagDrawer={() => setIsBulkTagDrawerOpen(false)}
           onClearBulkSelection={() => {
             setSelectedProjectIds([]);
             setBulkTagIds([]);
+            setIsBulkTagDrawerOpen(false);
           }}
           onSelectProject={(projectId) => void selectProject(projectId)}
           onToggleProject={toggleProjectSelection}
@@ -378,6 +410,7 @@ export function ProjectLibraryPage() {
           projects={allProjects}
           onCreateTag={(input) => void createTag(input)}
           onUpdateTag={(id, patch) => void updateTag(id, patch)}
+          onMoveTag={(id, direction) => void moveTag(id, direction)}
           onDeleteTag={(id) => void deleteTag(id)}
           onBack={() => navigate("library")}
         />
@@ -471,6 +504,8 @@ type LibraryViewProps = {
   selectedProject: ProjectDetail | null;
   selectedProjectIds: string[];
   bulkTagIds: string[];
+  tagFilterMode: TagFilterMode;
+  isBulkTagDrawerOpen: boolean;
   query: string;
   filter: FilterKey;
   selectedTagIds: string[];
@@ -485,8 +520,11 @@ type LibraryViewProps = {
   onQueryChange(query: string): void;
   onFilterChange(filter: FilterKey): void;
   onTagFilterChange(tagIds: string[]): void;
+  onTagFilterModeChange(mode: TagFilterMode): void;
   onBulkTagChange(tagIds: string[]): void;
   onApplyBulkTags(): void;
+  onOpenBulkTagDrawer(): void;
+  onCloseBulkTagDrawer(): void;
   onClearBulkSelection(): void;
   onSelectProject(projectId: string): void;
   onToggleProject(projectId: string): void;
@@ -505,6 +543,8 @@ function LibraryView({
   selectedProject,
   selectedProjectIds,
   bulkTagIds,
+  tagFilterMode,
+  isBulkTagDrawerOpen,
   query,
   filter,
   selectedTagIds,
@@ -519,8 +559,11 @@ function LibraryView({
   onQueryChange,
   onFilterChange,
   onTagFilterChange,
+  onTagFilterModeChange,
   onBulkTagChange,
   onApplyBulkTags,
+  onOpenBulkTagDrawer,
+  onCloseBulkTagDrawer,
   onClearBulkSelection,
   onSelectProject,
   onToggleProject,
@@ -557,9 +600,11 @@ function LibraryView({
         activeFilter={filter}
         tags={tags}
         selectedTagIds={selectedTagIds}
+        tagFilterMode={tagFilterMode}
         onQueryChange={onQueryChange}
         onFilterChange={onFilterChange}
         onTagFilterChange={onTagFilterChange}
+        onTagFilterModeChange={onTagFilterModeChange}
       />
 
       <section className="summary-grid" data-od-id="summary">
@@ -583,11 +628,9 @@ function LibraryView({
 
       <BulkTagBar
         selectedCount={selectedProjectIds.length}
-        tags={tags}
         selectedTagIds={bulkTagIds}
         disabled={isBusy}
-        onTagChange={onBulkTagChange}
-        onApply={onApplyBulkTags}
+        onOpen={onOpenBulkTagDrawer}
         onClear={onClearBulkSelection}
       />
 
@@ -612,21 +655,32 @@ function LibraryView({
         onSuggestionApplied={onSuggestionApplied}
         onError={onError}
       />
+
+      <BulkTagDrawer
+        open={isBulkTagDrawerOpen && selectedProjectIds.length > 0}
+        selectedCount={selectedProjectIds.length}
+        tags={tags}
+        selectedTagIds={bulkTagIds}
+        disabled={isBusy}
+        onTagChange={onBulkTagChange}
+        onApply={onApplyBulkTags}
+        onClearTags={() => onBulkTagChange([])}
+        onClearProjects={onClearBulkSelection}
+        onClose={onCloseBulkTagDrawer}
+      />
     </>
   );
 }
 
 type BulkTagBarProps = {
   selectedCount: number;
-  tags: TagNode[];
   selectedTagIds: string[];
   disabled: boolean;
-  onTagChange(tagIds: string[]): void;
-  onApply(): void;
+  onOpen(): void;
   onClear(): void;
 };
 
-function BulkTagBar({ selectedCount, tags, selectedTagIds, disabled, onTagChange, onApply, onClear }: BulkTagBarProps) {
+function BulkTagBar({ selectedCount, selectedTagIds, disabled, onOpen, onClear }: BulkTagBarProps) {
   if (!selectedCount) {
     return null;
   }
@@ -634,20 +688,132 @@ function BulkTagBar({ selectedCount, tags, selectedTagIds, disabled, onTagChange
     <section className="bulkbar show" data-od-id="bulk-tagging" aria-live="polite">
       <div className="bulk-copy">
         <strong>已选择 {selectedCount} 个项目</strong>
-        <span>选择一个或多个层级标签后，将以追加方式批量写入，不覆盖已有标签。</span>
-      </div>
-      <div className="bulk-control">
-        <ProjectTagPicker tags={tags} selectedTagIds={selectedTagIds} onChange={onTagChange} />
+        <span>{selectedTagIds.length ? `已选择 ${selectedTagIds.length} 个待追加标签` : "从右侧抽屉选择要追加的层级标签。"}</span>
       </div>
       <div className="bulk-actions">
-        <button className="btn btn-primary" type="button" disabled={disabled || !selectedTagIds.length} onClick={onApply}>
-          追加标签
+        <button className="btn btn-primary" type="button" disabled={disabled} onClick={onOpen}>
+          批量打标
         </button>
         <button className="btn" type="button" disabled={disabled} onClick={onClear}>
           清除选择
         </button>
       </div>
     </section>
+  );
+}
+
+type BulkTagDrawerProps = {
+  open: boolean;
+  selectedCount: number;
+  tags: TagNode[];
+  selectedTagIds: string[];
+  disabled: boolean;
+  onTagChange(tagIds: string[]): void;
+  onApply(): void;
+  onClearTags(): void;
+  onClearProjects(): void;
+  onClose(): void;
+};
+
+function BulkTagDrawer({
+  open,
+  selectedCount,
+  tags,
+  selectedTagIds,
+  disabled,
+  onTagChange,
+  onApply,
+  onClearTags,
+  onClearProjects,
+  onClose
+}: BulkTagDrawerProps) {
+  const selectedTags = tags.filter((tag) => selectedTagIds.includes(tag.id));
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="drawer-layer open" role="presentation" onMouseDown={onClose}>
+      <aside
+        className="drawer bulk-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="批量追加标签"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="drawer-head">
+          <div>
+            <h2>批量追加标签</h2>
+            <p className="muted">已选择 {selectedCount} 个项目</p>
+          </div>
+          <button className="icon-btn" type="button" aria-label="关闭批量打标" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="drawer-body">
+          <TagTreeSelector
+            tags={tags}
+            selectedTagIds={selectedTagIds}
+            onChange={onTagChange}
+            density="comfortable"
+            disabled={disabled}
+            searchPlaceholder="搜索要追加的标签"
+            emptyText="先在标签面板创建标签。"
+            ariaLabel="批量打标标签树"
+          />
+          <section className="selected-tag-preview" aria-label="已选择标签">
+            <div className="tag-filter-head">
+              <span>已选标签</span>
+              <button className="text-btn" type="button" disabled={disabled || !selectedTagIds.length} onClick={onClearTags}>
+                清除
+              </button>
+            </div>
+            {selectedTags.length ? (
+              <div className="tags tag-paths">
+                {selectedTags.map((tag) => (
+                  <button
+                    className="tag tag-button"
+                    type="button"
+                    key={tag.id}
+                    title={tag.path}
+                    disabled={disabled}
+                    onClick={() => onTagChange(selectedTagIds.filter((id) => id !== tag.id))}
+                  >
+                    {tag.path.replaceAll("/", " / ")}
+                    <X size={12} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">未选择标签。</p>
+            )}
+          </section>
+          <div className="drawer-actions">
+            <button className="btn btn-primary" type="button" disabled={disabled || !selectedTagIds.length} onClick={onApply}>
+              追加标签
+            </button>
+            <button className="btn" type="button" disabled={disabled} onClick={onClearProjects}>
+              清除项目选择
+            </button>
+            <button className="btn" type="button" disabled={disabled} onClick={onClose}>
+              关闭
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -726,11 +892,12 @@ type TagsPageProps = {
   projects: ProjectListItem[];
   onCreateTag(input: TagCreateInput): void;
   onUpdateTag(id: string, patch: TagUpdatePatch): void;
+  onMoveTag(id: string, direction: TagMoveDirection): void;
   onDeleteTag(id: string): void;
   onBack(): void;
 };
 
-function TagsPage({ tags, projects, onCreateTag, onUpdateTag, onDeleteTag, onBack }: TagsPageProps) {
+function TagsPage({ tags, projects, onCreateTag, onUpdateTag, onMoveTag, onDeleteTag, onBack }: TagsPageProps) {
   const [tagQuery, setTagQuery] = useState("");
   const [projectQuery, setProjectQuery] = useState("");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(tags[0]?.id ?? null);
@@ -811,15 +978,21 @@ function TagsPage({ tags, projects, onCreateTag, onUpdateTag, onDeleteTag, onBac
             </p>
             <div className="tree-list" role="tree" aria-label="标签树">
               {visibleTags.length ? visibleTags.map((tag) => (
-                <button
+                <div
                   className={`tree-node ${tag.id === selectedTagId ? "is-active" : ""}`}
-                  type="button"
                   role="treeitem"
+                  tabIndex={0}
                   aria-selected={tag.id === selectedTagId}
                   aria-level={tag.depth + 1}
                   style={{ "--tag-depth": tag.depth } as CSSProperties}
                   key={tag.id}
                   onClick={() => setSelectedTagId(tag.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedTagId(tag.id);
+                    }
+                  }}
                 >
                   <span className="node-mark" aria-hidden="true" />
                   <span className="node-main">
@@ -827,7 +1000,37 @@ function TagsPage({ tags, projects, onCreateTag, onUpdateTag, onDeleteTag, onBac
                     <small>{tag.path.replaceAll("/", " / ")}</small>
                   </span>
                   <span className="count">{tag.projectCount}</span>
-                </button>
+                  <span className="tag-order-controls" aria-label={`${tag.path} 排序`}>
+                    <button
+                      className="icon-btn"
+                      type="button"
+                      title="上移"
+                      aria-label={`上移 ${tag.name}`}
+                      disabled={!canMoveSibling(tag, tags, "up")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedTagId(tag.id);
+                        onMoveTag(tag.id, "up");
+                      }}
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      type="button"
+                      title="下移"
+                      aria-label={`下移 ${tag.name}`}
+                      disabled={!canMoveSibling(tag, tags, "down")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedTagId(tag.id);
+                        onMoveTag(tag.id, "down");
+                      }}
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                  </span>
+                </div>
               )) : (
                 <div className="empty-state">
                   <strong>没有匹配的标签</strong>
@@ -1230,6 +1433,15 @@ function pathForRoute(route: RouteKey): string {
 
 function normalizeSearch(value: string): string {
   return value.trim().toLowerCase().replace(/\s*\/\s*/g, "/");
+}
+
+function canMoveSibling(tag: TagNode, tags: TagNode[], direction: TagMoveDirection): boolean {
+  const siblings = tags.filter((item) => item.parentId === tag.parentId);
+  const index = siblings.findIndex((item) => item.id === tag.id);
+  if (direction === "up") {
+    return index > 0;
+  }
+  return index >= 0 && index < siblings.length - 1;
 }
 
 function formatDateTime(value: string | null): string {

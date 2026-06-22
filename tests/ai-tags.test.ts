@@ -73,13 +73,13 @@ test("applying suggestions reuses existing tags and creates missing paths", asyn
     ]
   });
 
-  assert.deepEqual(updated.tags.map((tag) => tag.path), ["业务域/水健康/数据转换", "项目类型/CLI 工具"]);
+  assert.deepEqual(updated.tags.map((tag) => tag.path), ["项目类型/CLI 工具", "业务域/水健康/数据转换"]);
   assert.deepEqual((await service.listTags()).map((tag) => tag.path), [
+    "项目类型",
+    "项目类型/CLI 工具",
     "业务域",
     "业务域/水健康",
-    "业务域/水健康/数据转换",
-    "项目类型",
-    "项目类型/CLI 工具"
+    "业务域/水健康/数据转换"
   ]);
   service.close();
 });

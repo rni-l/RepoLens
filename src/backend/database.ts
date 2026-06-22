@@ -15,6 +15,7 @@ import type {
   ScanRoot,
   ScanRootUpdatePatch,
   TagCreateInput,
+  TagMoveDirection,
   TagNode,
   TagUpdatePatch
 } from "../shared/types.js";
@@ -39,6 +40,8 @@ type ProjectRow = {
   entry_files: string;
   last_modified_at: string | null;
   last_scanned_at: string | null;
+  folder_created_at: string | null;
+  folder_updated_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -56,6 +59,7 @@ type TagRow = {
   name: string;
   parent_id: string | null;
   path: string;
+  sort_order: number | null;
   created_at: string;
   updated_at: string;
   project_count?: number;
@@ -74,6 +78,8 @@ export type ProjectUpsertInput = {
   testCommand: string | null;
   entryFiles: string[];
   lastModifiedAt: string | null;
+  folderCreatedAt?: string | null;
+  folderUpdatedAt?: string | null;
   lastScannedAt: string;
 };
 
@@ -148,7 +154,7 @@ export class RepoLensDatabase {
          ORDER BY path ASC`
       )
       .all() as TagRow[];
-    return rows.map(mapTagNode);
+    return sortTagsForTree(rows).map(mapTagNode);
   }
 
   getTag(id: string): TagNode {
@@ -173,12 +179,13 @@ export class RepoLensDatabase {
     const now = new Date().toISOString();
     const id = idFromStableText("tag", tagPath);
     this.assertSiblingNameAvailable(parent?.id ?? null, name);
+    const sortOrder = this.nextTagSortOrder(parent?.id ?? null);
     this.db
       .prepare(
-        `INSERT INTO tags (id, name, parent_id, path, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO tags (id, name, parent_id, path, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, name, parent?.id ?? null, tagPath, now, now);
+      .run(id, name, parent?.id ?? null, tagPath, sortOrder, now, now);
     return this.getTag(id);
   }
 
@@ -199,11 +206,13 @@ export class RepoLensDatabase {
     const now = new Date().toISOString();
     const oldPath = current.path;
     const newPath = parent ? `${parent.path}/${name}` : name;
+    const parentChanged = parentId !== current.parentId;
+    const nextSortOrder = parentChanged ? this.nextTagSortOrder(parent?.id ?? null) : current.sortOrder;
     this.db.exec("BEGIN");
     try {
       this.db
-        .prepare("UPDATE tags SET name = ?, parent_id = ?, path = ?, updated_at = ? WHERE id = ?")
-        .run(name, parent?.id ?? null, newPath, now, id);
+        .prepare("UPDATE tags SET name = ?, parent_id = ?, path = ?, sort_order = ?, updated_at = ? WHERE id = ?")
+        .run(name, parent?.id ?? null, newPath, nextSortOrder, now, id);
       const descendants = (this.db.prepare("SELECT * FROM tags ORDER BY path ASC").all() as TagRow[])
         .filter((tag) => tag.path.startsWith(`${oldPath}/`));
       const update = this.db.prepare("UPDATE tags SET path = ?, updated_at = ? WHERE id = ?");
@@ -219,6 +228,33 @@ export class RepoLensDatabase {
       throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
     }
     return this.getTag(id);
+  }
+
+  moveTag(id: string, direction: TagMoveDirection): TagNode[] {
+    if (direction !== "up" && direction !== "down") {
+      throw new RepoLensError("tag_move_direction_invalid", "Tag move direction must be up or down.");
+    }
+    const current = this.getTag(id);
+    const siblings = this.listSiblingTagRows(current.parentId);
+    const currentIndex = siblings.findIndex((tag) => tag.id === current.id);
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+      return this.listTags();
+    }
+
+    const target = siblings[targetIndex];
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN");
+    try {
+      const update = this.db.prepare("UPDATE tags SET sort_order = ?, updated_at = ? WHERE id = ?");
+      update.run(target.sort_order ?? 0, now, current.id);
+      update.run(current.sortOrder, now, target.id);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
+    return this.listTags();
   }
 
   deleteTag(id: string): void {
@@ -270,7 +306,7 @@ export class RepoLensDatabase {
     if (clauses.length) {
       sql += ` WHERE ${clauses.join(" AND ")}`;
     }
-    sql += " ORDER BY favorite DESC, updated_at DESC, name ASC";
+    sql += " ORDER BY favorite DESC, coalesce(folder_updated_at, updated_at) DESC, name ASC";
 
     let projects = (this.db.prepare(sql).all(...params) as ProjectRow[]).map((row) =>
       mapProjectListItem(row, this.listProjectTags(row.id))
@@ -285,6 +321,10 @@ export class RepoLensDatabase {
     if (filters.tagIds?.length) {
       const allowedTagIds = this.getTagAndDescendantIds(filters.tagIds);
       projects = projects.filter((project) => project.tags.some((tag) => allowedTagIds.has(tag.id)));
+    }
+    if (filters.excludedTagIds?.length) {
+      const excludedTagIds = this.getTagAndDescendantIds(filters.excludedTagIds);
+      projects = projects.filter((project) => !project.tags.some((tag) => excludedTagIds.has(tag.id)));
     }
     if (filters.scanRootId) {
       const root = this.getScanRoot(filters.scanRootId);
@@ -415,6 +455,8 @@ export class RepoLensDatabase {
   upsertProject(input: ProjectUpsertInput): { project: ProjectDetail; created: boolean } {
     const existing = this.getProjectByPath(input.path);
     const now = new Date().toISOString();
+    const folderCreatedAt = input.folderCreatedAt ?? now;
+    const folderUpdatedAt = input.folderUpdatedAt ?? input.lastModifiedAt ?? now;
     if (!existing) {
       this.db
         .prepare(
@@ -422,8 +464,8 @@ export class RepoLensDatabase {
              id, name, path, source, status, favorite, description, description_source,
              readme_summary, tech_stacks, start_command, start_command_source,
              test_command, test_command_source, entry_files, last_modified_at,
-             last_scanned_at, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 0, ?, 'auto', ?, ?, ?, 'auto', ?, 'auto', ?, ?, ?, ?, ?)`
+             last_scanned_at, folder_created_at, folder_updated_at, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 0, ?, 'auto', ?, ?, ?, 'auto', ?, 'auto', ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           input.id,
@@ -439,6 +481,8 @@ export class RepoLensDatabase {
           JSON.stringify(input.entryFiles),
           input.lastModifiedAt,
           input.lastScannedAt,
+          folderCreatedAt,
+          folderUpdatedAt,
           now,
           now
         );
@@ -455,7 +499,7 @@ export class RepoLensDatabase {
         `UPDATE projects
          SET name = ?, source = ?, status = ?, description = ?, readme_summary = ?,
              tech_stacks = ?, start_command = ?, test_command = ?, entry_files = ?,
-             last_modified_at = ?, last_scanned_at = ?, updated_at = ?
+             last_modified_at = ?, last_scanned_at = ?, folder_created_at = ?, folder_updated_at = ?, updated_at = ?
          WHERE id = ?`
       )
       .run(
@@ -470,6 +514,8 @@ export class RepoLensDatabase {
         JSON.stringify(input.entryFiles),
         input.lastModifiedAt,
         input.lastScannedAt,
+        folderCreatedAt,
+        folderUpdatedAt,
         now,
         existing.id
       );
@@ -490,6 +536,17 @@ export class RepoLensDatabase {
     return changed;
   }
 
+  refreshProjectFolderTimes(projectId: string, folderCreatedAt: string | null, folderUpdatedAt: string | null): ProjectDetail {
+    const current = this.getProject(projectId);
+    const nextCreatedAt = folderCreatedAt ?? current.createdAt;
+    const nextUpdatedAt = folderUpdatedAt ?? current.updatedAt;
+    const now = new Date().toISOString();
+    this.db
+      .prepare("UPDATE projects SET folder_created_at = ?, folder_updated_at = ?, updated_at = ? WHERE id = ?")
+      .run(nextCreatedAt, nextUpdatedAt, now, projectId);
+    return this.getProject(projectId);
+  }
+
   private listProjectTags(projectId: string): ProjectTag[] {
     const rows = this.db
       .prepare(
@@ -500,7 +557,11 @@ export class RepoLensDatabase {
          ORDER BY tags.path ASC`
       )
       .all(projectId) as ProjectTag[];
-    return rows;
+    const linked = new Map(rows.map((tag) => [tag.id, tag]));
+    return this.listTags().flatMap((tag) => {
+      const linkedTag = linked.get(tag.id);
+      return linkedTag ? [linkedTag] : [];
+    });
   }
 
   private replaceProjectTagLinks(projectId: string, tagIds: string[]): void {
@@ -548,6 +609,24 @@ export class RepoLensDatabase {
     return row ? mapTagNode(row) : null;
   }
 
+  private listSiblingTagRows(parentId: string | null): TagRow[] {
+    const rows = this.db
+      .prepare(parentId ? "SELECT * FROM tags WHERE parent_id = ?" : "SELECT * FROM tags WHERE parent_id IS NULL")
+      .all(...(parentId ? [parentId] : [])) as TagRow[];
+    return rows.sort(compareTagRows);
+  }
+
+  private nextTagSortOrder(parentId: string | null): number {
+    const row = this.db
+      .prepare(
+        parentId
+          ? "SELECT coalesce(max(sort_order), -1) + 1 AS next_order FROM tags WHERE parent_id = ?"
+          : "SELECT coalesce(max(sort_order), -1) + 1 AS next_order FROM tags WHERE parent_id IS NULL"
+      )
+      .get(...(parentId ? [parentId] : [])) as { next_order: number } | undefined;
+    return Number(row?.next_order ?? 0);
+  }
+
   private assertSiblingNameAvailable(parentId: string | null, name: string, exceptId?: string): void {
     const existing = this.getTagByParentAndName(parentId, name);
     if (existing && existing.id !== exceptId) {
@@ -583,8 +662,8 @@ export class RepoLensDatabase {
 
     const now = new Date().toISOString();
     const insertTag = this.db.prepare(
-      `INSERT INTO tags (id, name, parent_id, path, created_at, updated_at)
-       VALUES (?, ?, NULL, ?, ?, ?)
+      `INSERT INTO tags (id, name, parent_id, path, sort_order, created_at, updated_at)
+       VALUES (?, ?, NULL, ?, ?, ?, ?)
        ON CONFLICT(id) DO NOTHING`
     );
     const insertLink = this.db.prepare(
@@ -600,7 +679,7 @@ export class RepoLensDatabase {
           continue;
         }
         const tagId = idFromStableText("tag", name);
-        insertTag.run(tagId, name, name, now, now);
+        insertTag.run(tagId, name, name, this.nextTagSortOrder(null), now, now);
         insertLink.run(row.project_id, tagId);
       }
       this.db.exec("COMMIT");
@@ -638,6 +717,8 @@ export class RepoLensDatabase {
         entry_files TEXT NOT NULL,
         last_modified_at TEXT,
         last_scanned_at TEXT,
+        folder_created_at TEXT,
+        folder_updated_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -654,6 +735,7 @@ export class RepoLensDatabase {
         name TEXT NOT NULL,
         parent_id TEXT,
         path TEXT NOT NULL UNIQUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE(parent_id, name),
@@ -677,7 +759,57 @@ export class RepoLensDatabase {
         value TEXT NOT NULL
       );
     `);
+    this.ensureProjectFolderTimeColumns();
+    this.ensureTagSortOrderColumn();
     this.migrateFlatTags();
+  }
+
+  private ensureProjectFolderTimeColumns(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>).map((column) => column.name)
+    );
+    if (!columns.has("folder_created_at")) {
+      this.db.prepare("ALTER TABLE projects ADD COLUMN folder_created_at TEXT").run();
+      this.db.prepare("UPDATE projects SET folder_created_at = created_at WHERE folder_created_at IS NULL").run();
+    }
+    if (!columns.has("folder_updated_at")) {
+      this.db.prepare("ALTER TABLE projects ADD COLUMN folder_updated_at TEXT").run();
+      this.db
+        .prepare("UPDATE projects SET folder_updated_at = coalesce(last_modified_at, updated_at) WHERE folder_updated_at IS NULL")
+        .run();
+    }
+  }
+
+  private ensureTagSortOrderColumn(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(tags)").all() as Array<{ name: string }>).map((column) => column.name)
+    );
+    if (!columns.has("sort_order")) {
+      this.db.prepare("ALTER TABLE tags ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
+      this.normalizeTagSortOrders();
+    }
+  }
+
+  private normalizeTagSortOrders(): void {
+    const rows = this.db.prepare("SELECT * FROM tags ORDER BY path ASC").all() as TagRow[];
+    if (!rows.length) {
+      return;
+    }
+    const parentIds = new Set<string | null>(rows.map((row) => row.parent_id));
+    const update = this.db.prepare("UPDATE tags SET sort_order = ? WHERE id = ?");
+    this.db.exec("BEGIN");
+    try {
+      for (const parentId of parentIds) {
+        const siblings = rows
+          .filter((row) => row.parent_id === parentId)
+          .sort((left, right) => left.path.localeCompare(right.path, "zh-CN"));
+        siblings.forEach((row, index) => update.run(index, row.id));
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
   }
 }
 
@@ -703,8 +835,8 @@ function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListIte
     lastModifiedAt: row.last_modified_at,
     source: row.source,
     favorite: Boolean(row.favorite),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    createdAt: row.folder_created_at ?? row.created_at,
+    updatedAt: row.folder_updated_at ?? row.updated_at
   };
 }
 
@@ -718,9 +850,7 @@ function mapProjectDetail(row: ProjectRow, tags: ProjectTag[]): ProjectDetail {
     descriptionSource: row.description_source,
     startCommandSource: row.start_command_source,
     testCommandSource: row.test_command_source,
-    lastScannedAt: row.last_scanned_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    lastScannedAt: row.last_scanned_at
   };
 }
 
@@ -731,10 +861,40 @@ function mapTagNode(row: TagRow): TagNode {
     parentId: row.parent_id,
     path: row.path,
     depth: row.path.split("/").length - 1,
+    sortOrder: Number(row.sort_order ?? 0),
     projectCount: Number(row.project_count ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function sortTagsForTree(rows: TagRow[]): TagRow[] {
+  const byParent = new Map<string, TagRow[]>();
+  for (const row of rows) {
+    const key = row.parent_id ?? "";
+    byParent.set(key, [...(byParent.get(key) ?? []), row]);
+  }
+  for (const siblings of byParent.values()) {
+    siblings.sort(compareTagRows);
+  }
+
+  const result: TagRow[] = [];
+  const append = (parentId: string | null) => {
+    for (const row of byParent.get(parentId ?? "") ?? []) {
+      result.push(row);
+      append(row.id);
+    }
+  };
+  append(null);
+  return result;
+}
+
+function compareTagRows(left: TagRow, right: TagRow): number {
+  const order = Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0);
+  if (order !== 0) {
+    return order;
+  }
+  return left.path.localeCompare(right.path, "zh-CN");
 }
 
 function normalizeTagName(name: string): string {

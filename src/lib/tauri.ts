@@ -9,6 +9,7 @@ import type {
   ProjectUpdatePatch,
   ScanRootUpdatePatch,
   TagCreateInput,
+  TagMoveDirection,
   TagUpdatePatch
 } from "./types";
 import { mockApi } from "./mockApi";
@@ -31,6 +32,7 @@ export const api: AppApi = isTauri
       listTags: () => call("list_tags"),
       createTag: (input: TagCreateInput) => call("create_tag", { input }),
       updateTag: (id: string, patch: TagUpdatePatch) => call("update_tag", { id, patch }),
+      moveTag: (id: string, direction: TagMoveDirection) => call("move_tag", { id, direction }),
       deleteTag: (id: string) => call("delete_tag", { id }),
       getAiTaggingStatus: () => call("get_ai_tagging_status"),
       generateTagSuggestions: (input: GenerateTagSuggestionsInput) =>

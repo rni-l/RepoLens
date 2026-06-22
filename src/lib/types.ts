@@ -22,6 +22,7 @@ export type {
   ScanRootUpdatePatch,
   ScanSummary,
   TagCreateInput,
+  TagMoveDirection,
   TagNode,
   TagUpdatePatch
 } from "../shared/types";

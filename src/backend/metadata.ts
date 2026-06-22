@@ -79,6 +79,8 @@ export async function extractProjectMetadata(projectPathInput: string, source: "
     testCommand,
     entryFiles,
     lastModifiedAt: stats.mtime.toISOString(),
+    folderCreatedAt: dateToIso(stats.birthtime) ?? dateToIso(stats.ctime),
+    folderUpdatedAt: dateToIso(stats.mtime),
     lastScannedAt: now,
     markerNames,
     extractionErrors
@@ -218,6 +220,14 @@ function truncate(value: string, maxLength: number): string {
     return value;
   }
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function dateToIso(date: Date): string | null {
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null;
+  }
+  return date.toISOString();
 }
 
 function isMissingFileError(error: unknown): boolean {
