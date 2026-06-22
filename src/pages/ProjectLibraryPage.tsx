@@ -7,6 +7,7 @@ import { ProjectTable } from "../components/ProjectTable";
 import { ScanRootList } from "../components/ScanRootList";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { TagTreePanel } from "../components/TagTreePanel";
+import { pruneSelectedTagIds } from "../lib/tagState";
 import { api } from "../lib/tauri";
 import type {
   AiTaggingStatus,
@@ -69,7 +70,7 @@ export function ProjectLibraryPage() {
     ]);
     setProjects(projectList);
     setTags(tagList);
-    setSelectedTagIds((current) => current.filter((tagId) => tagList.some((tag) => tag.id === tagId)));
+    setSelectedTagIds((current) => pruneSelectedTagIds(current, tagList.map((tag) => tag.id)));
     setScanRoots(roots);
     setOpenActions(actions);
     setAiStatus(status);
@@ -184,7 +185,10 @@ export function ProjectLibraryPage() {
       .map((item) => item.id);
     try {
       await api.deleteTag(id);
-      setSelectedTagIds((current) => current.filter((tagId) => !deletedIds.includes(tagId)));
+      const remainingTagIds = tags
+        .filter((item) => !deletedIds.includes(item.id))
+        .map((item) => item.id);
+      setSelectedTagIds((current) => pruneSelectedTagIds(current, remainingTagIds));
       await load();
       showToast("标签已删除");
     } catch (error) {
