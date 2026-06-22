@@ -1,31 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search, Settings, Plus } from "lucide-react";
+import { RefreshCw, Search, Settings, Plus, Tags } from "lucide-react";
 import { AddScanRootDialog } from "../components/AddScanRootDialog";
 import { ProjectDetailPanel } from "../components/ProjectDetailPanel";
 import { ProjectSearchBar, type FilterKey } from "../components/ProjectSearchBar";
 import { ProjectTable } from "../components/ProjectTable";
 import { ScanRootList } from "../components/ScanRootList";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { TagTreePanel } from "../components/TagTreePanel";
 import { api } from "../lib/tauri";
 import type {
+  AiTaggingStatus,
   OpenAction,
   OpenActionAvailability,
   ProjectDetail,
   ProjectFilters,
   ProjectListItem,
   ScanRoot,
-  ScanSummary
+  ScanSummary,
+  TagCreateInput,
+  TagNode,
+  TagUpdatePatch
 } from "../lib/types";
 
-type NavTarget = "library" | "scan-roots" | "settings";
+type NavTarget = "library" | "tags" | "scan-roots" | "settings";
 
 export function ProjectLibraryPage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [tags, setTags] = useState<TagNode[]>([]);
   const [scanRoots, setScanRoots] = useState<ScanRoot[]>([]);
   const [openActions, setOpenActions] = useState<OpenActionAvailability[]>([]);
+  const [aiStatus, setAiStatus] = useState<AiTaggingStatus | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const [toast, setToast] = useState("准备就绪");
   const [isBusy, setIsBusy] = useState(false);
@@ -34,14 +42,15 @@ export function ProjectLibraryPage() {
   const [activeNav, setActiveNav] = useState<NavTarget>("library");
 
   const filters = useMemo<ProjectFilters>(() => {
+    const tagIds = selectedTagIds.length ? selectedTagIds : undefined;
     if (filter === "favorite") {
-      return { query, favoriteOnly: true };
+      return { query, favoriteOnly: true, tagIds };
     }
     if (filter === "all") {
-      return { query };
+      return { query, tagIds };
     }
-    return { query, statuses: [filter] };
-  }, [filter, query]);
+    return { query, statuses: [filter], tagIds };
+  }, [filter, query, selectedTagIds]);
 
   const load = useCallback(async () => {
     const [projectList, roots, actions] = await Promise.all([
@@ -49,13 +58,28 @@ export function ProjectLibraryPage() {
       api.listScanRoots(),
       api.detectOpenActions()
     ]);
+    const [tagList, status] = await Promise.all([
+      api.listTags().catch(() => []),
+      api.getAiTaggingStatus().catch(() => ({
+        available: false as const,
+        provider: "none",
+        model: null,
+        reason: "not_configured" as const
+      }))
+    ]);
     setProjects(projectList);
+    setTags(tagList);
+    setSelectedTagIds((current) => current.filter((tagId) => tagList.some((tag) => tag.id === tagId)));
     setScanRoots(roots);
     setOpenActions(actions);
+    setAiStatus(status);
     if (projectList.length === 0) {
       setSelectedProject(null);
     } else if (!projectList.some((project) => project.id === selectedProject?.id)) {
       const nextProject = await api.getProject(projectList[0].id);
+      setSelectedProject(nextProject);
+    } else if (selectedProject) {
+      const nextProject = await api.getProject(selectedProject.id);
       setSelectedProject(nextProject);
     }
   }, [filters, selectedProject?.id]);
@@ -67,7 +91,7 @@ export function ProjectLibraryPage() {
   useEffect(() => {
     const syncActiveNav = () => {
       const target = window.location.hash.replace("#", "");
-      if (target === "library" || target === "scan-roots" || target === "settings") {
+      if (target === "library" || target === "tags" || target === "scan-roots" || target === "settings") {
         setActiveNav(target);
       }
     };
@@ -86,6 +110,7 @@ export function ProjectLibraryPage() {
   const enabledRoots = scanRoots.filter((root) => root.enabled).length;
   const availableOpenActions = openActions.filter((action) => action.available).length;
   const issueCount = projects.filter((project) => project.status === "missing").length + (scanSummary?.errors.length ?? 0);
+  const taggedProjectCount = projects.filter((project) => project.tags.length > 0).length;
 
   async function selectProject(projectId: string) {
     setSelectedProject(await api.getProject(projectId));
@@ -126,6 +151,51 @@ export function ProjectLibraryPage() {
     } catch (error) {
       showToast(errorMessage(error));
     }
+  }
+
+  async function createTag(input: TagCreateInput) {
+    try {
+      await api.createTag(input);
+      await load();
+      showToast("标签已创建");
+    } catch (error) {
+      showToast(errorMessage(error));
+    }
+  }
+
+  async function updateTag(id: string, patch: TagUpdatePatch) {
+    try {
+      await api.updateTag(id, patch);
+      await load();
+      showToast("标签已更新");
+    } catch (error) {
+      showToast(errorMessage(error));
+    }
+  }
+
+  async function deleteTag(id: string) {
+    const tag = tags.find((item) => item.id === id);
+    if (!tag) return;
+    if (!window.confirm(`删除「${tag.path.replaceAll("/", " / ")}」及其子标签？项目链接也会移除。`)) {
+      return;
+    }
+    const deletedIds = tags
+      .filter((item) => item.id === id || item.path.startsWith(`${tag.path}/`))
+      .map((item) => item.id);
+    try {
+      await api.deleteTag(id);
+      setSelectedTagIds((current) => current.filter((tagId) => !deletedIds.includes(tagId)));
+      await load();
+      showToast("标签已删除");
+    } catch (error) {
+      showToast(errorMessage(error));
+    }
+  }
+
+  async function applySuggestedProject(project: ProjectDetail) {
+    setSelectedProject(project);
+    await load();
+    showToast("标签建议已应用");
   }
 
   async function toggleRoot(id: string, enabled: boolean) {
@@ -179,6 +249,14 @@ export function ProjectLibraryPage() {
           </a>
           <a
             className="nav-item"
+            aria-current={activeNav === "tags" ? "page" : undefined}
+            href="#tags"
+            onClick={() => setActiveNav("tags")}
+          >
+            <span className="nav-ico"><Tags size={14} /></span><span>标签</span>
+          </a>
+          <a
+            className="nav-item"
             aria-current={activeNav === "scan-roots" ? "page" : undefined}
             href="#scan-roots"
             onClick={() => setActiveNav("scan-roots")}
@@ -226,8 +304,11 @@ export function ProjectLibraryPage() {
         <ProjectSearchBar
           query={query}
           activeFilter={filter}
+          tags={tags}
+          selectedTagIds={selectedTagIds}
           onQueryChange={setQuery}
           onFilterChange={setFilter}
+          onTagFilterChange={setSelectedTagIds}
         />
 
         <div className="content-grid">
@@ -245,6 +326,10 @@ export function ProjectLibraryPage() {
                 <span>待处理异常</span>
                 <strong>{issueCount}</strong>
               </article>
+              <article className="summary-card">
+                <span>已打标签项目</span>
+                <strong>{taggedProjectCount}</strong>
+              </article>
             </section>
 
             <ProjectTable
@@ -259,8 +344,20 @@ export function ProjectLibraryPage() {
           <aside className="side-stack">
             <ProjectDetailPanel
               project={selectedProject}
+              tags={tags}
+              aiStatus={aiStatus}
               onSave={(patch) => void saveSelected(patch)}
               onCopyPath={(path) => void copyPath(path)}
+              onSuggestionApplied={(project) => void applySuggestedProject(project)}
+              onError={showToast}
+            />
+            <TagTreePanel
+              tags={tags}
+              selectedTagIds={selectedTagIds}
+              onFilterChange={setSelectedTagIds}
+              onCreateTag={(input) => void createTag(input)}
+              onUpdateTag={(id, patch) => void updateTag(id, patch)}
+              onDeleteTag={(id) => void deleteTag(id)}
             />
             <ScanRootList roots={scanRoots} onToggle={(id, enabled) => void toggleRoot(id, enabled)} />
             <SettingsPanel

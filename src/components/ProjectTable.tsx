@@ -15,7 +15,7 @@ export function ProjectTable({ projects, selectedProjectId, openActions, onSelec
     <section className="library" data-od-id="project-library" aria-label="项目列表">
       <div className="library-head" aria-hidden="true">
         <span>项目</span>
-        <span>技术栈</span>
+        <span>标签</span>
         <span>状态</span>
         <span>打开方式</span>
       </div>
@@ -44,8 +44,11 @@ export function ProjectTable({ projects, selectedProjectId, openActions, onSelec
               <span className="path">{project.path}</span>
             </span>
             <span className="tags">
-              {(project.techStacks.length ? project.techStacks : project.tags).slice(0, 4).map((tag) => (
-                <span className="tag" key={tag}>{tag}</span>
+              {project.tags.slice(0, 4).map((tag) => (
+                <span className="tag" key={tag.id} title={tag.path}>{tag.name}</span>
+              ))}
+              {project.tags.length === 0 && project.techStacks.slice(0, 3).map((stack) => (
+                <span className="tag tag-muted" key={stack}>{stack}</span>
               ))}
             </span>
             <StatusBadge status={project.status} />

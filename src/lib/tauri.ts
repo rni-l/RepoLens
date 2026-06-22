@@ -1,10 +1,14 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import type {
   AppApi,
+  ApplyTagSuggestionsInput,
+  GenerateTagSuggestionsInput,
   OpenAction,
   ProjectFilters,
   ProjectUpdatePatch,
-  ScanRootUpdatePatch
+  ScanRootUpdatePatch,
+  TagCreateInput,
+  TagUpdatePatch
 } from "./types";
 import { mockApi } from "./mockApi";
 
@@ -22,6 +26,14 @@ export const api: AppApi = isTauri
         call("update_project", { projectId, patch }),
       addManualProject: (path: string) => call("add_manual_project", { path }),
       deleteProject: (projectId: string) => call("delete_project", { projectId }),
+      listTags: () => call("list_tags"),
+      createTag: (input: TagCreateInput) => call("create_tag", { input }),
+      updateTag: (id: string, patch: TagUpdatePatch) => call("update_tag", { id, patch }),
+      deleteTag: (id: string) => call("delete_tag", { id }),
+      getAiTaggingStatus: () => call("get_ai_tagging_status"),
+      generateTagSuggestions: (input: GenerateTagSuggestionsInput) =>
+        call("generate_tag_suggestions", { input }),
+      applyTagSuggestions: (input: ApplyTagSuggestionsInput) => call("apply_tag_suggestions", { input }),
       listScanRoots: () => call("list_scan_roots"),
       addScanRoot: (path: string) => call("add_scan_root", { path }),
       updateScanRoot: (id: string, patch: ScanRootUpdatePatch) =>

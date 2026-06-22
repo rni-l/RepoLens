@@ -1,23 +1,37 @@
 import { useEffect, useState } from "react";
-import type { ProjectDetail, ProjectUpdatePatch } from "../lib/types";
+import type { AiTaggingStatus, ProjectDetail, ProjectUpdatePatch, TagNode } from "../lib/types";
+import { AiTagSuggestionPanel } from "./AiTagSuggestionPanel";
+import { ProjectTagPicker } from "./ProjectTagPicker";
 
 type Props = {
   project: ProjectDetail | null;
+  tags: TagNode[];
+  aiStatus: AiTaggingStatus | null;
   onSave(patch: ProjectUpdatePatch): void;
   onCopyPath(path: string): void;
+  onSuggestionApplied(project: ProjectDetail): void;
+  onError(message: string): void;
 };
 
-export function ProjectDetailPanel({ project, onSave, onCopyPath }: Props) {
+export function ProjectDetailPanel({
+  project,
+  tags,
+  aiStatus,
+  onSave,
+  onCopyPath,
+  onSuggestionApplied,
+  onError
+}: Props) {
   const [description, setDescription] = useState("");
   const [startCommand, setStartCommand] = useState("");
   const [testCommand, setTestCommand] = useState("");
-  const [tags, setTags] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   useEffect(() => {
     setDescription(project?.description ?? "");
     setStartCommand(project?.startCommand ?? "");
     setTestCommand(project?.testCommand ?? "");
-    setTags(project?.tags.join(", ") ?? "");
+    setSelectedTagIds(project?.tags.map((tag) => tag.id) ?? []);
   }, [project]);
 
   return (
@@ -48,12 +62,17 @@ export function ProjectDetailPanel({ project, onSave, onCopyPath }: Props) {
               <input value={testCommand} onChange={(event) => setTestCommand(event.target.value)} />
             </label>
             <label className="field">
-              <span>标签</span>
-              <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="用逗号分隔" />
+              <span>项目标签</span>
+              <ProjectTagPicker tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} />
             </label>
+            <div className="tags tag-paths">
+              {project.tags.map((tag) => (
+                <span className="tag" key={tag.id} title={tag.path}>{tag.path.replaceAll("/", " / ")}</span>
+              ))}
+            </div>
             <div className="tags">
               {project.techStacks.map((stack) => (
-                <span className="tag" key={stack}>{stack}</span>
+                <span className="tag tag-muted" key={stack}>{stack}</span>
               ))}
             </div>
             <button
@@ -64,12 +83,18 @@ export function ProjectDetailPanel({ project, onSave, onCopyPath }: Props) {
                   description,
                   startCommand: startCommand.trim() || null,
                   testCommand: testCommand.trim() || null,
-                  tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+                  tagIds: selectedTagIds
                 })
               }
             >
               保存人工字段
             </button>
+            <AiTagSuggestionPanel
+              project={project}
+              status={aiStatus}
+              onApplied={onSuggestionApplied}
+              onError={onError}
+            />
           </>
         ) : (
           <p className="muted">选择一个项目查看详情。</p>

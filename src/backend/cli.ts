@@ -32,6 +32,20 @@ async function dispatch(request: CliRequest): Promise<unknown> {
       return service.addManualProject(String(args.path));
     case "delete_project":
       return service.deleteProject(String(args.projectId));
+    case "list_tags":
+      return service.listTags();
+    case "create_tag":
+      return service.createTag((args.input ?? {}) as never);
+    case "update_tag":
+      return service.updateTag(String(args.id), (args.patch ?? {}) as never);
+    case "delete_tag":
+      return service.deleteTag(String(args.id));
+    case "get_ai_tagging_status":
+      return service.getAiTaggingStatus();
+    case "generate_tag_suggestions":
+      return service.generateTagSuggestions((args.input ?? {}) as never);
+    case "apply_tag_suggestions":
+      return service.applyTagSuggestions((args.input ?? {}) as never);
     case "list_scan_roots":
       return service.listScanRoots();
     case "add_scan_root":

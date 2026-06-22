@@ -301,6 +301,13 @@ h3 {
   justify-content: flex-end;
 }
 
+.active-tag-filters {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .chip {
   min-height: 34px;
   padding: 0 var(--space-3);
@@ -316,6 +323,38 @@ h3 {
   color: var(--accent);
   border-color: color-mix(in oklab, var(--accent), transparent 48%);
   background: color-mix(in oklab, var(--accent), transparent 91%);
+}
+
+.chip svg {
+  flex: 0 0 auto;
+}
+
+.tag-filter-select {
+  min-height: 34px;
+  display: inline-grid;
+  grid-template-columns: auto minmax(150px, 210px);
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+}
+
+.tag-filter-select span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.tag-filter-select select {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
 .content-grid {
@@ -334,7 +373,7 @@ h3 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -455,6 +494,16 @@ h3 {
   font-weight: 700;
 }
 
+.tag-muted {
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  background: transparent;
+}
+
+.tag-paths .tag {
+  max-width: 100%;
+}
+
 .status {
   display: inline-flex;
   justify-content: center;
@@ -551,7 +600,8 @@ h3 {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -562,7 +612,8 @@ h3 {
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   border-color: var(--accent);
   box-shadow: var(--focus-ring);
 }
@@ -570,6 +621,212 @@ h3 {
 .field textarea {
   min-height: 92px;
   resize: vertical;
+}
+
+.tag-picker {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.tag-choice {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  padding-left: calc(var(--space-2) + var(--tag-depth, 0) * 16px);
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.tag-choice:hover {
+  background: var(--bg);
+}
+
+.tag-choice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-tree {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.tag-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: var(--space-2);
+  align-items: center;
+  padding-left: calc(var(--tag-depth, 0) * 16px);
+}
+
+.tag-tree-name {
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-weight: 800;
+}
+
+.tag-tree-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-tree-name small {
+  min-width: 22px;
+  min-height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.tag-tree-row.is-selected .tag-tree-name,
+.tag-tree-name:hover {
+  border-color: color-mix(in oklab, var(--accent), transparent 72%);
+  background: color-mix(in oklab, var(--accent), transparent 94%);
+}
+
+.tool.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent), transparent 91%);
+}
+
+.tag-editor {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.inline-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger), transparent 65%);
+}
+
+.subhead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.subhead div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.subhead strong {
+  font-size: var(--text-sm);
+}
+
+.subhead span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.ai-tags {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.suggestion-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.suggestion-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.suggestion-item > span {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.suggestion-item strong {
+  overflow-wrap: anywhere;
+}
+
+.suggestion-item small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.suggestion-item em {
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-style: normal;
+}
+
+.prompt-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.prompt-preview summary {
+  padding: var(--space-3);
+  color: var(--fg-2);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.prompt-preview pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
 }
 
 .root-list {
@@ -816,6 +1073,10 @@ h3 {
   .filters {
     justify-content: flex-start;
   }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -875,6 +1136,11 @@ h3 {
   .actions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .subhead {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

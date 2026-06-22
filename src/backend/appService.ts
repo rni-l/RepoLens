@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import type {
+  AiTaggingStatus,
+  ApplyTagSuggestionsInput,
   AppApi,
+  GenerateTagSuggestionsInput,
+  GenerateTagSuggestionsResult,
   OpenAction,
   OpenActionAvailability,
   ProjectDetail,
@@ -9,17 +13,35 @@ import type {
   ProjectUpdatePatch,
   ScanRoot,
   ScanRootUpdatePatch,
-  ScanSummary
+  ScanSummary,
+  TagCreateInput,
+  TagNode,
+  TagUpdatePatch
 } from "../shared/types.js";
+import {
+  buildAiTagPayload,
+  DeterministicMockAiTagProvider,
+  generateValidatedTagSuggestions,
+  type AiTagProvider
+} from "./aiTagProvider.js";
 import { RepoLensDatabase } from "./database.js";
 import { RepoLensError } from "./errors.js";
 import { extractProjectMetadata, pathExists } from "./metadata.js";
+import { OpenAiCompatibleTagProvider } from "./openAiCompatibleTagProvider.js";
 import { detectOpenActions, openPath } from "./openActions.js";
 import { normalizeFsPath } from "./pathUtils.js";
 import { scanRoots } from "./scanner.js";
 
+type RepoLensServiceOptions = {
+  aiProvider?: AiTagProvider | null;
+  env?: NodeJS.ProcessEnv;
+};
+
 export class RepoLensService implements AppApi {
-  constructor(private readonly database: RepoLensDatabase = new RepoLensDatabase()) {}
+  constructor(
+    private readonly database: RepoLensDatabase = new RepoLensDatabase(),
+    private readonly options: RepoLensServiceOptions = {}
+  ) {}
 
   close(): void {
     this.database.close();
@@ -49,6 +71,61 @@ export class RepoLensService implements AppApi {
 
   async deleteProject(projectId: string): Promise<void> {
     this.database.deleteProject(projectId);
+  }
+
+  async listTags(): Promise<TagNode[]> {
+    return this.database.listTags();
+  }
+
+  async createTag(input: TagCreateInput): Promise<TagNode> {
+    return this.database.createTag(input);
+  }
+
+  async updateTag(id: string, patch: TagUpdatePatch): Promise<TagNode> {
+    return this.database.updateTag(id, patch);
+  }
+
+  async deleteTag(id: string): Promise<void> {
+    this.database.deleteTag(id);
+  }
+
+  async getAiTaggingStatus(): Promise<AiTaggingStatus> {
+    const provider = this.resolveAiProvider();
+    if (provider) {
+      return {
+        available: true,
+        provider: provider.name,
+        model: provider.model
+      };
+    }
+    return {
+      available: false,
+      provider: "none",
+      model: null,
+      reason: this.aiDisabled() ? "disabled" : "not_configured"
+    };
+  }
+
+  async generateTagSuggestions(input: GenerateTagSuggestionsInput): Promise<GenerateTagSuggestionsResult> {
+    const provider = this.resolveAiProvider();
+    if (!provider) {
+      throw new RepoLensError("ai_not_configured", "AI tag suggestions are not configured.");
+    }
+    const project = this.database.getProject(input.projectId);
+    const payload = buildAiTagPayload(project, this.database.listTags());
+    return generateValidatedTagSuggestions(provider, payload, input);
+  }
+
+  async applyTagSuggestions(input: ApplyTagSuggestionsInput): Promise<ProjectDetail> {
+    const project = this.database.getProject(input.projectId);
+    const tagIds = new Set(input.mode === "append" ? project.tags.map((tag) => tag.id) : []);
+    for (const suggestion of input.suggestions) {
+      const tag = suggestion.tagId
+        ? this.database.getTag(suggestion.tagId)
+        : this.database.findOrCreateTagPath(suggestion.segments);
+      tagIds.add(tag.id);
+    }
+    return this.database.updateProject(input.projectId, { tagIds: Array.from(tagIds) });
   }
 
   async listScanRoots(): Promise<ScanRoot[]> {
@@ -97,5 +174,31 @@ export class RepoLensService implements AppApi {
       throw new RepoLensError("project_path_missing", "Project path does not exist.");
     }
     await openPath(project.path, action);
+  }
+
+  private resolveAiProvider(): AiTagProvider | null {
+    if (this.options.aiProvider !== undefined) {
+      return this.options.aiProvider;
+    }
+    if (this.aiDisabled()) {
+      return null;
+    }
+    const env = this.options.env ?? process.env;
+    if (env.REPOLENS_AI_PROVIDER === "mock" || env.NODE_ENV === "development") {
+      return new DeterministicMockAiTagProvider();
+    }
+    if (!env.REPOLENS_AI_API_KEY) {
+      return null;
+    }
+    return new OpenAiCompatibleTagProvider({
+      apiKey: env.REPOLENS_AI_API_KEY,
+      baseUrl: env.REPOLENS_AI_BASE_URL,
+      model: env.REPOLENS_AI_MODEL
+    });
+  }
+
+  private aiDisabled(): boolean {
+    const env = this.options.env ?? process.env;
+    return env.REPOLENS_AI_DISABLED === "1" || env.REPOLENS_AI_PROVIDER === "disabled";
   }
 }

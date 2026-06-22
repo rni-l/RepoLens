@@ -18,7 +18,11 @@ export function normalizeFsPath(input: string): string {
 
 export function idFromPath(prefix: string, fsPath: string): string {
   const normalized = normalizeFsPath(fsPath);
-  const digest = createHash("sha1").update(normalized).digest("hex").slice(0, 18);
+  return idFromStableText(prefix, normalized);
+}
+
+export function idFromStableText(prefix: string, value: string): string {
+  const digest = createHash("sha1").update(value).digest("hex").slice(0, 18);
   return `${prefix}_${digest}`;
 }
 

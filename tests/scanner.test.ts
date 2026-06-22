@@ -53,11 +53,12 @@ test("rescans preserve user-maintained project fields", async () => {
   const database = new RepoLensDatabase(dbPath);
   const first = await extractProjectMetadata(projectPath, "scan");
   const inserted = database.upsertProject(first).project;
+  const important = database.createTag({ name: "important" });
   database.updateProject(inserted.id, {
     description: "User description",
     startCommand: "pnpm dev",
     testCommand: "pnpm test",
-    tags: ["important"]
+    tagIds: [important.id]
   });
 
   await fs.writeFile(
@@ -72,7 +73,7 @@ test("rescans preserve user-maintained project fields", async () => {
   assert.equal(rescanned.description, "User description");
   assert.equal(rescanned.startCommand, "pnpm dev");
   assert.equal(rescanned.testCommand, "pnpm test");
-  assert.deepEqual(rescanned.tags, ["important"]);
+  assert.deepEqual(rescanned.tags.map((tag) => tag.path), ["important"]);
   assert.equal(rescanned.descriptionSource, "user");
   assert.equal(rescanned.startCommandSource, "user");
   assert.equal(rescanned.testCommandSource, "user");

@@ -1,16 +1,25 @@
 export type {
+  AiTaggingStatus,
+  AiTagSuggestion,
   AppApi,
+  ApplyTagSuggestionsInput,
   FieldSource,
+  GenerateTagSuggestionsInput,
+  GenerateTagSuggestionsResult,
   OpenAction,
   OpenActionAvailability,
   ProjectDetail,
   ProjectFilters,
   ProjectListItem,
+  ProjectTag,
   ProjectSource,
   ProjectStatus,
   ProjectUpdatePatch,
   ScanError,
   ScanRoot,
   ScanRootUpdatePatch,
-  ScanSummary
+  ScanSummary,
+  TagCreateInput,
+  TagNode,
+  TagUpdatePatch
 } from "../shared/types";

@@ -8,12 +8,16 @@ import type {
   ProjectListItem,
   ProjectSource,
   ProjectStatus,
+  ProjectTag,
   ProjectUpdatePatch,
   ScanRoot,
-  ScanRootUpdatePatch
+  ScanRootUpdatePatch,
+  TagCreateInput,
+  TagNode,
+  TagUpdatePatch
 } from "../shared/types.js";
 import { RepoLensError } from "./errors.js";
-import { defaultDatabasePath, idFromPath, normalizeFsPath } from "./pathUtils.js";
+import { defaultDatabasePath, idFromPath, idFromStableText, normalizeFsPath } from "./pathUtils.js";
 
 type ProjectRow = {
   id: string;
@@ -43,6 +47,16 @@ type ScanRootRow = {
   enabled: number;
   created_at: string;
   updated_at: string;
+};
+
+type TagRow = {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  path: string;
+  created_at: string;
+  updated_at: string;
+  project_count?: number;
 };
 
 export type ProjectUpsertInput = {
@@ -123,6 +137,108 @@ export class RepoLensDatabase {
     this.db.prepare("DELETE FROM scan_roots WHERE id = ?").run(id);
   }
 
+  listTags(): TagNode[] {
+    const rows = this.db
+      .prepare(
+        `SELECT tags.*,
+                (SELECT count(*) FROM project_tag_links WHERE project_tag_links.tag_id = tags.id) AS project_count
+         FROM tags
+         ORDER BY path ASC`
+      )
+      .all() as TagRow[];
+    return rows.map(mapTagNode);
+  }
+
+  getTag(id: string): TagNode {
+    const row = this.db
+      .prepare(
+        `SELECT tags.*,
+                (SELECT count(*) FROM project_tag_links WHERE project_tag_links.tag_id = tags.id) AS project_count
+         FROM tags
+         WHERE id = ?`
+      )
+      .get(id) as TagRow | undefined;
+    if (!row) {
+      throw new RepoLensError("tag_not_found", "Tag was not found.");
+    }
+    return mapTagNode(row);
+  }
+
+  createTag(input: TagCreateInput): TagNode {
+    const name = normalizeTagName(input.name);
+    const parent = input.parentId ? this.getTag(input.parentId) : null;
+    const tagPath = parent ? `${parent.path}/${name}` : name;
+    const now = new Date().toISOString();
+    const id = idFromStableText("tag", tagPath);
+    this.assertSiblingNameAvailable(parent?.id ?? null, name);
+    this.db
+      .prepare(
+        `INSERT INTO tags (id, name, parent_id, path, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(id, name, parent?.id ?? null, tagPath, now, now);
+    return this.getTag(id);
+  }
+
+  updateTag(id: string, patch: TagUpdatePatch): TagNode {
+    const current = this.getTag(id);
+    const name = patch.name === undefined ? current.name : normalizeTagName(patch.name);
+    const parentId = patch.parentId === undefined ? current.parentId : patch.parentId ?? null;
+
+    if (parentId === current.id) {
+      throw new RepoLensError("tag_cycle", "A tag cannot be moved under itself.");
+    }
+    const parent = parentId ? this.getTag(parentId) : null;
+    if (parent && this.isDescendant(parent, current)) {
+      throw new RepoLensError("tag_cycle", "A tag cannot be moved under one of its descendants.");
+    }
+    this.assertSiblingNameAvailable(parent?.id ?? null, name, current.id);
+
+    const now = new Date().toISOString();
+    const oldPath = current.path;
+    const newPath = parent ? `${parent.path}/${name}` : name;
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare("UPDATE tags SET name = ?, parent_id = ?, path = ?, updated_at = ? WHERE id = ?")
+        .run(name, parent?.id ?? null, newPath, now, id);
+      const descendants = (this.db.prepare("SELECT * FROM tags ORDER BY path ASC").all() as TagRow[])
+        .filter((tag) => tag.path.startsWith(`${oldPath}/`));
+      const update = this.db.prepare("UPDATE tags SET path = ?, updated_at = ? WHERE id = ?");
+      for (const descendant of descendants) {
+        update.run(`${newPath}${descendant.path.slice(oldPath.length)}`, now, descendant.id);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      if (error instanceof RepoLensError) {
+        throw error;
+      }
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
+    return this.getTag(id);
+  }
+
+  deleteTag(id: string): void {
+    this.getTag(id);
+    this.db.prepare("DELETE FROM tags WHERE id = ?").run(id);
+  }
+
+  findOrCreateTagPath(segments: string[]): TagNode {
+    const cleaned = normalizeTagSegments(segments);
+    let parentId: string | null = null;
+    let current: TagNode | null = null;
+    for (const segment of cleaned) {
+      const existing = this.getTagByParentAndName(parentId, segment);
+      current = existing ?? this.createTag({ name: segment, parentId });
+      parentId = current.id;
+    }
+    if (!current) {
+      throw new RepoLensError("tag_name_required", "Tag path is required.");
+    }
+    return current;
+  }
+
   listProjects(filters: ProjectFilters = {}): ProjectListItem[] {
     let sql = "SELECT * FROM projects";
     const clauses: string[] = [];
@@ -140,11 +256,13 @@ export class RepoLensDatabase {
       params.push(...filters.statuses);
     }
     if (filters.query?.trim()) {
-      const like = `%${filters.query.trim().toLowerCase()}%`;
+      const trimmed = filters.query.trim().toLowerCase();
+      const like = `%${trimmed}%`;
+      const pathLike = `%${trimmed.replace(/\s*\/\s*/g, "/")}%`;
       clauses.push(
-        `(lower(name) LIKE ? OR lower(path) LIKE ? OR lower(coalesce(description, '')) LIKE ? OR lower(coalesce(readme_summary, '')) LIKE ? OR lower(tech_stacks) LIKE ? OR lower(coalesce(start_command, '')) LIKE ? OR id IN (SELECT project_id FROM project_tags WHERE lower(tag) LIKE ?))`
+        `(lower(name) LIKE ? OR lower(path) LIKE ? OR lower(coalesce(description, '')) LIKE ? OR lower(coalesce(readme_summary, '')) LIKE ? OR lower(tech_stacks) LIKE ? OR lower(coalesce(start_command, '')) LIKE ? OR id IN (SELECT project_id FROM project_tag_links JOIN tags ON tags.id = project_tag_links.tag_id WHERE lower(tags.name) LIKE ? OR lower(tags.path) LIKE ?))`
       );
-      params.push(like, like, like, like, like, like, like);
+      params.push(like, like, like, like, like, like, like, pathLike);
     }
 
     if (clauses.length) {
@@ -153,7 +271,7 @@ export class RepoLensDatabase {
     sql += " ORDER BY favorite DESC, updated_at DESC, name ASC";
 
     let projects = (this.db.prepare(sql).all(...params) as ProjectRow[]).map((row) =>
-      mapProjectListItem(row, this.listTags(row.id))
+      mapProjectListItem(row, this.listProjectTags(row.id))
     );
 
     if (filters.techStacks?.length) {
@@ -162,9 +280,9 @@ export class RepoLensDatabase {
         project.techStacks.some((stack) => wanted.has(stack.toLowerCase()))
       );
     }
-    if (filters.tags?.length) {
-      const wanted = new Set(filters.tags.map((item) => item.toLowerCase()));
-      projects = projects.filter((project) => project.tags.some((tag) => wanted.has(tag.toLowerCase())));
+    if (filters.tagIds?.length) {
+      const allowedTagIds = this.getTagAndDescendantIds(filters.tagIds);
+      projects = projects.filter((project) => project.tags.some((tag) => allowedTagIds.has(tag.id)));
     }
     if (filters.scanRootId) {
       const root = this.getScanRoot(filters.scanRootId);
@@ -179,13 +297,13 @@ export class RepoLensDatabase {
     if (!row) {
       throw new RepoLensError("project_not_found", "Project was not found.");
     }
-    return mapProjectDetail(row, this.listTags(projectId));
+    return mapProjectDetail(row, this.listProjectTags(projectId));
   }
 
   getProjectByPath(rawPath: string): ProjectDetail | null {
     const projectPath = normalizeFsPath(rawPath);
     const row = this.db.prepare("SELECT * FROM projects WHERE path = ?").get(projectPath) as ProjectRow | undefined;
-    return row ? mapProjectDetail(row, this.listTags(row.id)) : null;
+    return row ? mapProjectDetail(row, this.listProjectTags(row.id)) : null;
   }
 
   updateProject(projectId: string, patch: ProjectUpdatePatch): ProjectDetail {
@@ -226,8 +344,8 @@ export class RepoLensDatabase {
         projectId
       );
 
-    if (patch.tags) {
-      this.replaceTags(projectId, patch.tags);
+    if (patch.tagIds !== undefined) {
+      this.replaceProjectTagLinks(projectId, patch.tagIds);
     }
 
     return this.getProject(projectId);
@@ -315,19 +433,123 @@ export class RepoLensDatabase {
     return changed;
   }
 
-  private listTags(projectId: string): string[] {
+  private listProjectTags(projectId: string): ProjectTag[] {
     const rows = this.db
-      .prepare("SELECT tag FROM project_tags WHERE project_id = ? ORDER BY tag ASC")
-      .all(projectId) as Array<{ tag: string }>;
-    return rows.map((row) => row.tag);
+      .prepare(
+        `SELECT tags.id, tags.name, tags.path
+         FROM tags
+         JOIN project_tag_links ON project_tag_links.tag_id = tags.id
+         WHERE project_tag_links.project_id = ?
+         ORDER BY tags.path ASC`
+      )
+      .all(projectId) as ProjectTag[];
+    return rows;
   }
 
-  private replaceTags(projectId: string, tags: string[]): void {
-    const cleaned = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
-    this.db.prepare("DELETE FROM project_tags WHERE project_id = ?").run(projectId);
-    const insert = this.db.prepare("INSERT INTO project_tags (project_id, tag) VALUES (?, ?)");
-    for (const tag of cleaned) {
-      insert.run(projectId, tag);
+  private replaceProjectTagLinks(projectId: string, tagIds: string[]): void {
+    const cleaned = Array.from(new Set(tagIds.map((tagId) => tagId.trim()).filter(Boolean)));
+    if (cleaned.length) {
+      const foundRows = this.db
+        .prepare(`SELECT id FROM tags WHERE id IN (${cleaned.map(() => "?").join(", ")})`)
+        .all(...cleaned) as Array<{ id: string }>;
+      const found = new Set(foundRows.map((row) => row.id));
+      const missing = cleaned.find((tagId) => !found.has(tagId));
+      if (missing) {
+        throw new RepoLensError("tag_not_found", "One or more tags were not found.");
+      }
+    }
+
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM project_tag_links WHERE project_id = ?").run(projectId);
+      const insert = this.db.prepare("INSERT INTO project_tag_links (project_id, tag_id) VALUES (?, ?)");
+      for (const tagId of cleaned) {
+        insert.run(projectId, tagId);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      if (error instanceof RepoLensError) {
+        throw error;
+      }
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private getTagByParentAndName(parentId: string | null, name: string): TagNode | null {
+    const row = this.db
+      .prepare(
+        parentId
+          ? `SELECT tags.*,
+                    (SELECT count(*) FROM project_tag_links WHERE project_tag_links.tag_id = tags.id) AS project_count
+             FROM tags WHERE parent_id = ? AND name = ?`
+          : `SELECT tags.*,
+                    (SELECT count(*) FROM project_tag_links WHERE project_tag_links.tag_id = tags.id) AS project_count
+             FROM tags WHERE parent_id IS NULL AND name = ?`
+      )
+      .get(...(parentId ? [parentId, name] : [name])) as TagRow | undefined;
+    return row ? mapTagNode(row) : null;
+  }
+
+  private assertSiblingNameAvailable(parentId: string | null, name: string, exceptId?: string): void {
+    const existing = this.getTagByParentAndName(parentId, name);
+    if (existing && existing.id !== exceptId) {
+      throw new RepoLensError("tag_duplicate", "A sibling tag with that name already exists.");
+    }
+  }
+
+  private isDescendant(candidate: TagNode, ancestor: TagNode): boolean {
+    return candidate.path.startsWith(`${ancestor.path}/`);
+  }
+
+  private getTagAndDescendantIds(tagIds: string[]): Set<string> {
+    const selected = tagIds.map((id) => this.getTag(id));
+    const allowed = new Set<string>();
+    const rows = this.db.prepare("SELECT id, path FROM tags").all() as Array<{ id: string; path: string }>;
+    for (const tag of selected) {
+      for (const row of rows) {
+        if (row.id === tag.id || row.path.startsWith(`${tag.path}/`)) {
+          allowed.add(row.id);
+        }
+      }
+    }
+    return allowed;
+  }
+
+  private migrateFlatTags(): void {
+    const rows = this.db
+      .prepare("SELECT project_id, tag FROM project_tags WHERE trim(tag) <> '' ORDER BY tag ASC")
+      .all() as Array<{ project_id: string; tag: string }>;
+    if (!rows.length) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const insertTag = this.db.prepare(
+      `INSERT INTO tags (id, name, parent_id, path, created_at, updated_at)
+       VALUES (?, ?, NULL, ?, ?, ?)
+       ON CONFLICT(id) DO NOTHING`
+    );
+    const insertLink = this.db.prepare(
+      `INSERT INTO project_tag_links (project_id, tag_id)
+       VALUES (?, ?)
+       ON CONFLICT(project_id, tag_id) DO NOTHING`
+    );
+    this.db.exec("BEGIN");
+    try {
+      for (const row of rows) {
+        const name = normalizeLegacyTagName(row.tag);
+        if (!name) {
+          continue;
+        }
+        const tagId = idFromStableText("tag", name);
+        insertTag.run(tagId, name, name, now, now);
+        insertLink.run(row.project_id, tagId);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -370,11 +592,35 @@ export class RepoLensDatabase {
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        parent_id TEXT,
+        path TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(parent_id, name),
+        FOREIGN KEY (parent_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS project_tag_links (
+        project_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        PRIMARY KEY (project_id, tag_id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tags_parent_id ON tags(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_tags_path ON tags(path);
+      CREATE INDEX IF NOT EXISTS idx_project_tag_links_tag_id ON project_tag_links(tag_id);
+
       CREATE TABLE IF NOT EXISTS app_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
     `);
+    this.migrateFlatTags();
   }
 }
 
@@ -388,7 +634,7 @@ function mapScanRoot(row: ScanRootRow): ScanRoot {
   };
 }
 
-function mapProjectListItem(row: ProjectRow, tags: string[]): ProjectListItem {
+function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListItem {
   return {
     id: row.id,
     name: row.name,
@@ -403,7 +649,7 @@ function mapProjectListItem(row: ProjectRow, tags: string[]): ProjectListItem {
   };
 }
 
-function mapProjectDetail(row: ProjectRow, tags: string[]): ProjectDetail {
+function mapProjectDetail(row: ProjectRow, tags: ProjectTag[]): ProjectDetail {
   return {
     ...mapProjectListItem(row, tags),
     readmeSummary: row.readme_summary,
@@ -417,6 +663,41 @@ function mapProjectDetail(row: ProjectRow, tags: string[]): ProjectDetail {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function mapTagNode(row: TagRow): TagNode {
+  return {
+    id: row.id,
+    name: row.name,
+    parentId: row.parent_id,
+    path: row.path,
+    depth: row.path.split("/").length - 1,
+    projectCount: Number(row.project_count ?? 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function normalizeTagName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new RepoLensError("tag_name_required", "Tag name is required.");
+  }
+  if (trimmed.includes("/")) {
+    throw new RepoLensError("tag_name_invalid", "Tag names cannot contain /.");
+  }
+  return trimmed;
+}
+
+function normalizeLegacyTagName(name: string): string {
+  return name.trim().replaceAll("/", "／");
+}
+
+function normalizeTagSegments(segments: string[]): string[] {
+  if (!segments.length) {
+    throw new RepoLensError("tag_name_required", "Tag path is required.");
+  }
+  return segments.map(normalizeTagName);
 }
 
 function parseJsonArray(value: string): string[] {

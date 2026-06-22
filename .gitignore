@@ -6,4 +6,4 @@ output
 .playwright-cli
 .DS_Store
 
-src-tauri
+src-tauri/**
