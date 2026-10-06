@@ -5,7 +5,6 @@ import type {
   ProjectListItem,
 } from "../lib/types";
 import { ProjectRowActions } from "./ProjectRowActions";
-import { StatusBadge } from "./StatusBadge";
 
 const INTERACTIVE_ROW_TARGET_SELECTOR = [
   "button",
@@ -78,7 +77,6 @@ export function ProjectTable({
               </th>
               <th className="col-project">项目</th>
               <th className="col-tags">标签</th>
-              <th className="col-status">状态</th>
               <th className="col-time">创建时间</th>
               <th className="col-time">最后更新</th>
               <th className="col-open">打开方式</th>
@@ -180,9 +178,6 @@ export function ProjectTable({
                         </span>
                       ))}
                   </span>
-                </td>
-                <td className="col-status">
-                  <StatusBadge status={project.status} />
                 </td>
                 <td className="col-time mono" title="真实文件夹创建时间">
                   {formatDateTime(project.createdAt)}

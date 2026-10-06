@@ -583,7 +583,7 @@ function LibraryView({
       <section className="topbar" data-od-id="library-topbar">
         <div className="title-block">
           <h1>项目库工作台</h1>
-          <p>全宽浏览本地项目，按状态和层级标签筛选；多选项目后批量追加标签，单项目详情从右侧抽屉打开。</p>
+          <p>左侧浏览本地项目，右侧集中搜索和筛选；多选项目后批量追加标签，单项目详情从右侧抽屉打开。</p>
         </div>
         <div className="top-actions">
           <button className="btn" type="button" onClick={() => onNavigate("scan-sources")}>
@@ -597,18 +597,6 @@ function LibraryView({
           </button>
         </div>
       </section>
-
-      <ProjectSearchBar
-        query={query}
-        activeFilter={filter}
-        tags={tags}
-        selectedTagIds={selectedTagIds}
-        tagFilterMode={tagFilterMode}
-        onQueryChange={onQueryChange}
-        onFilterChange={onFilterChange}
-        onTagFilterChange={onTagFilterChange}
-        onTagFilterModeChange={onTagFilterModeChange}
-      />
 
       <section className="summary-grid" data-od-id="summary">
         <article className="summary-card metric">
@@ -629,24 +617,42 @@ function LibraryView({
         </article>
       </section>
 
-      <BulkTagBar
-        selectedCount={selectedProjectIds.length}
-        selectedTagIds={bulkTagIds}
-        disabled={isBusy}
-        onOpen={onOpenBulkTagDrawer}
-        onClear={onClearBulkSelection}
-      />
+      <section className="workbench-layout" data-od-id="library-workbench">
+        <div className="workbench-main">
+          <BulkTagBar
+            selectedCount={selectedProjectIds.length}
+            selectedTagIds={bulkTagIds}
+            disabled={isBusy}
+            onOpen={onOpenBulkTagDrawer}
+            onClear={onClearBulkSelection}
+          />
 
-      <ProjectTable
-        projects={projects}
-        activeProjectId={selectedProject?.id ?? null}
-        selectedProjectIds={selectedProjectIds}
-        openActions={openActions}
-        onSelect={onSelectProject}
-        onToggleProject={onToggleProject}
-        onToggleAll={onToggleAll}
-        onOpen={onOpenProject}
-      />
+          <ProjectTable
+            projects={projects}
+            activeProjectId={selectedProject?.id ?? null}
+            selectedProjectIds={selectedProjectIds}
+            openActions={openActions}
+            onSelect={onSelectProject}
+            onToggleProject={onToggleProject}
+            onToggleAll={onToggleAll}
+            onOpen={onOpenProject}
+          />
+        </div>
+
+        <aside className="workbench-search" aria-label="项目搜索与筛选">
+          <ProjectSearchBar
+            query={query}
+            activeFilter={filter}
+            tags={tags}
+            selectedTagIds={selectedTagIds}
+            tagFilterMode={tagFilterMode}
+            onQueryChange={onQueryChange}
+            onFilterChange={onFilterChange}
+            onTagFilterChange={onTagFilterChange}
+            onTagFilterModeChange={onTagFilterModeChange}
+          />
+        </aside>
+      </section>
 
       <ProjectDetailDrawer
         project={selectedProject}

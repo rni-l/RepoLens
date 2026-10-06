@@ -1,6 +1,7 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
 import type { TagNode } from "../lib/types";
+import { orderTagsForTree } from "../lib/tagState";
 
 type Props = {
   tags: TagNode[];
@@ -29,19 +30,17 @@ export function TagTreeSelector({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(tags.filter((tag) => tag.depth === 0).map((tag) => tag.id)));
 
   const selected = useMemo(() => new Set(selectedTagIds), [selectedTagIds]);
-  const tagById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
+  const orderedTags = useMemo(() => orderTagsForTree(tags), [tags]);
+  const tagById = useMemo(() => new Map(orderedTags.map((tag) => [tag.id, tag])), [orderedTags]);
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, TagNode[]>();
-    for (const tag of tags) {
+    for (const tag of orderedTags) {
       const siblings = map.get(tag.parentId) ?? [];
       siblings.push(tag);
       map.set(tag.parentId, siblings);
     }
-    for (const siblings of map.values()) {
-      siblings.sort((left, right) => left.path.localeCompare(right.path, "zh-CN"));
-    }
     return map;
-  }, [tags]);
+  }, [orderedTags]);
 
   const visibleTagIds = useMemo(() => {
     const trimmed = normalizeSearch(query);
@@ -49,7 +48,7 @@ export function TagTreeSelector({
       return null;
     }
     const visible = new Set<string>();
-    for (const tag of tags) {
+    for (const tag of orderedTags) {
       if (!normalizeSearch(`${tag.name} ${tag.path}`).includes(trimmed)) {
         continue;
       }
@@ -60,13 +59,13 @@ export function TagTreeSelector({
       }
     }
     return visible;
-  }, [query, tagById, tags]);
+  }, [orderedTags, query, tagById]);
 
   useEffect(() => {
     setExpandedIds((current) => {
-      const valid = new Set(tags.map((tag) => tag.id));
+      const valid = new Set(orderedTags.map((tag) => tag.id));
       const next = new Set(Array.from(current).filter((id) => valid.has(id)));
-      for (const tag of tags) {
+      for (const tag of orderedTags) {
         if (tag.depth === 0) {
           next.add(tag.id);
         }
@@ -80,7 +79,7 @@ export function TagTreeSelector({
       }
       return next;
     });
-  }, [selectedTagIds, tagById, tags]);
+  }, [orderedTags, selectedTagIds, tagById]);
 
   function toggleTag(tagId: string) {
     if (disabled) {
@@ -89,7 +88,7 @@ export function TagTreeSelector({
     const next = selected.has(tagId)
       ? selectedTagIds.filter((id) => id !== tagId)
       : [...selectedTagIds, tagId];
-    onChange(orderTagIds(next, tags));
+    onChange(orderTagIds(next, orderedTags));
   }
 
   function toggleExpanded(tagId: string) {
