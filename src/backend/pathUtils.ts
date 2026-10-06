@@ -27,6 +27,9 @@ export function idFromStableText(prefix: string, value: string): string {
 }
 
 export function defaultDatabasePath(): string {
+  if (process.env.REPOLENS_DB_PATH) {
+    return normalizeFsPath(process.env.REPOLENS_DB_PATH);
+  }
   return path.join(os.homedir(), ".repolens", "repolens.sqlite");
 }
 

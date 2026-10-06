@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import type { ProjectStatus, TagNode } from "../lib/types";
 import { TagTreeSelector } from "./TagTreeSelector";
 
-type FilterKey = "all" | ProjectStatus | "favorite";
+type FilterKey = "all" | ProjectStatus | "favorite" | "untagged";
 type TagFilterMode = "include" | "exclude";
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -12,7 +12,8 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "active", label: "活跃" },
   { key: "experimental", label: "实验" },
   { key: "missing", label: "缺失" },
-  { key: "favorite", label: "收藏" }
+  { key: "favorite", label: "收藏" },
+  { key: "untagged", label: "未打标" }
 ];
 
 type Props = {

@@ -5,6 +5,9 @@ import type {
   GenerateTagSuggestionsInput,
   OpenActionAvailability,
   ProjectDetail,
+  ProjectLink,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectFilters,
   ProjectListItem,
   ProjectTag,
@@ -66,6 +69,11 @@ let projects: ProjectDetail[] = [
     techStacks: ["TypeScript", "Vite", "Feishu"],
     status: "active",
     tags: toProjectTags([tagPaths.waterTransform, tagPaths.cli, tagPaths.frequent]),
+    links: [
+      mockLink("water", "local", "http://localhost:5173", "vite", "auto"),
+      mockLink("water", "test", "https://water-test.example.com", "后台", "user"),
+      mockLink("water", "prod", "https://water.example.com", "", "user")
+    ],
     lastModifiedAt: now,
     source: "scan",
     favorite: true,
@@ -87,6 +95,7 @@ let projects: ProjectDetail[] = [
     readmeSummary: "Self-hosted todo app for personal task planning.",
     techStacks: ["Node.js", "React"],
     status: "active",
+    links: [],
     tags: toProjectTags([tagPaths.webApp, tagPaths.selfCore]),
     lastModifiedAt: now,
     source: "scan",
@@ -109,6 +118,7 @@ let projects: ProjectDetail[] = [
     readmeSummary: null,
     techStacks: ["Node.js"],
     status: "experimental",
+    links: [],
     tags: toProjectTags([tagPaths.cleanTraining, tagPaths.cli]),
     lastModifiedAt: now,
     source: "scan",
@@ -131,6 +141,7 @@ let projects: ProjectDetail[] = [
     readmeSummary: null,
     techStacks: ["PHP"],
     status: "missing",
+    links: [],
     tags: toProjectTags([tagPaths.archived]),
     lastModifiedAt: null,
     source: "manual",
@@ -222,6 +233,7 @@ export const mockApi: AppApi = {
       techStacks: [],
       status: "active",
       tags: [],
+      links: [],
       lastModifiedAt: null,
       source: "manual",
       favorite: false,
@@ -351,8 +363,85 @@ export const mockApi: AppApi = {
   },
   async openProject() {
     return undefined;
+  },
+  async addProjectLink(input: ProjectLinkInput) {
+    return updateMockProject(input.projectId, (project) => ({
+      ...project,
+      links: [...project.links, mockLink(project.id, input.env, input.url, input.label ?? "", input.source ?? "user", input.port)]
+    }));
+  },
+  async updateProjectLink(id: string, patch: ProjectLinkPatch) {
+    const owner = findLinkOwner(id);
+    return updateMockProject(owner.id, (project) => ({
+      ...project,
+      links: project.links.map((link) =>
+        link.id === id ? { ...link, ...patch, source: link.source === "auto" ? "user" : link.source } : link
+      )
+    }));
+  },
+  async deleteProjectLink(id: string) {
+    const owner = findLinkOwner(id);
+    return updateMockProject(owner.id, (project) => ({ ...project, links: project.links.filter((link) => link.id !== id) }));
+  },
+  async clearAutoTags(projectId: string) {
+    return updateMockProject(projectId, (project) => ({
+      ...project,
+      tags: project.tags.filter((tag) => !tag.source || tag.source === "user")
+    }));
+  },
+  async openUrl(url: string) {
+    window.open(url, "_blank", "noopener");
+  },
+  async getIntegrationStatus() {
+    return [
+      { tool: "claude", label: "Claude Code", detected: true, hookInstalled: true, skillInstalled: true, files: [] },
+      { tool: "codex", label: "Codex", detected: true, hookInstalled: false, skillInstalled: true, files: [] },
+      { tool: "opencode", label: "opencode", detected: true, hookInstalled: false, skillInstalled: false, files: [] },
+      { tool: "omp", label: "omp (oh-my-pi)", detected: false, hookInstalled: false, skillInstalled: false, files: [] },
+      { tool: "shell", label: "zsh (cd 时自动登记)", detected: true, hookInstalled: false, skillInstalled: false, files: [] }
+    ];
   }
 };
+
+function mockLink(
+  projectId: string,
+  env: ProjectLink["env"],
+  url: string,
+  label: string,
+  source: ProjectLink["source"],
+  port?: number | null
+): ProjectLink {
+  const parsedPort = port ?? (Number(new URL(url).port) || null);
+  return {
+    id: `link_${Math.random().toString(16).slice(2, 12)}`,
+    projectId,
+    env,
+    label,
+    url,
+    port: parsedPort,
+    source,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function findLinkOwner(linkId: string): ProjectDetail {
+  const owner = projects.find((project) => project.links.some((link) => link.id === linkId));
+  if (!owner) {
+    throw new Error("Project link was not found.");
+  }
+  return owner;
+}
+
+function updateMockProject(projectId: string, update: (project: ProjectDetail) => ProjectDetail): ProjectDetail {
+  const index = projects.findIndex((item) => item.id === projectId);
+  if (index === -1) {
+    throw new Error("Project not found");
+  }
+  projects[index] = update(projects[index]);
+  return cloneProject(projects[index]);
+}
 
 function toListItem(project: ProjectDetail): ProjectListItem {
   return {
@@ -363,6 +452,7 @@ function toListItem(project: ProjectDetail): ProjectListItem {
     techStacks: project.techStacks,
     status: project.status,
     tags: project.tags,
+    links: project.links,
     lastModifiedAt: project.lastModifiedAt,
     source: project.source,
     favorite: project.favorite,
@@ -376,6 +466,7 @@ function cloneProject(project: ProjectDetail): ProjectDetail {
     ...project,
     techStacks: [...project.techStacks],
     tags: project.tags.map((tag) => ({ ...tag })),
+    links: project.links.map((link) => ({ ...link })),
     entryFiles: [...project.entryFiles]
   };
 }
@@ -387,6 +478,7 @@ function filterProjects(items: ProjectDetail[], filters: ProjectFilters): Projec
   const excludedTagIds = filters.excludedTagIds?.length ? descendantTagIds(filters.excludedTagIds) : null;
   return items.filter((project) => {
     if (filters.favoriteOnly && !project.favorite) return false;
+    if (filters.untagged && project.tags.length) return false;
     if (filters.statuses?.length && !filters.statuses.includes(project.status)) return false;
     if (allowedTagIds && !project.tags.some((tag) => allowedTagIds.has(tag.id))) return false;
     if (excludedTagIds && project.tags.some((tag) => excludedTagIds.has(tag.id))) return false;

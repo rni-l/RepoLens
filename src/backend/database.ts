@@ -1,17 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type {
   BulkTagProjectsInput,
   BulkTagProjectsResult,
   FieldSource,
+  LinkEnv,
+  LinkSource,
   ProjectDetail,
   ProjectFilters,
+  ProjectLink,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectListItem,
   ProjectSource,
   ProjectStatus,
   ProjectTag,
   ProjectUpdatePatch,
+  TagSource,
   ScanRoot,
   ScanRootUpdatePatch,
   TagCreateInput,
@@ -65,6 +72,28 @@ type TagRow = {
   project_count?: number;
 };
 
+type LinkRow = {
+  id: string;
+  project_id: string;
+  env: LinkEnv;
+  label: string;
+  url: string;
+  port: number | null;
+  source: LinkSource;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutoLinkInput = {
+  env: LinkEnv;
+  label: string;
+  url: string;
+  port: number | null;
+};
+
+const LINK_ENVS: LinkEnv[] = ["local", "test", "prod", "other"];
+
 export type ProjectUpsertInput = {
   id: string;
   name: string;
@@ -81,6 +110,7 @@ export type ProjectUpsertInput = {
   folderCreatedAt?: string | null;
   folderUpdatedAt?: string | null;
   lastScannedAt: string;
+  autoLinks?: AutoLinkInput[];
 };
 
 export class RepoLensDatabase {
@@ -89,7 +119,7 @@ export class RepoLensDatabase {
   constructor(dbPath = defaultDatabasePath()) {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
-    this.db.exec("PRAGMA foreign_keys = ON;");
+    this.db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;");
     this.migrate();
   }
 
@@ -289,6 +319,9 @@ export class RepoLensDatabase {
     if (filters.favoriteOnly) {
       clauses.push("favorite = 1");
     }
+    if (filters.untagged) {
+      clauses.push("id NOT IN (SELECT project_id FROM project_tag_links)");
+    }
     if (filters.statuses?.length) {
       clauses.push(`status IN (${filters.statuses.map(() => "?").join(", ")})`);
       params.push(...filters.statuses);
@@ -308,8 +341,9 @@ export class RepoLensDatabase {
     }
     sql += " ORDER BY favorite DESC, coalesce(folder_updated_at, updated_at) DESC, name ASC";
 
+    const linksByProject = this.listLinksByProject();
     let projects = (this.db.prepare(sql).all(...params) as ProjectRow[]).map((row) =>
-      mapProjectListItem(row, this.listProjectTags(row.id))
+      mapProjectListItem(row, this.listProjectTags(row.id), linksByProject.get(row.id) ?? [])
     );
 
     if (filters.techStacks?.length) {
@@ -339,13 +373,28 @@ export class RepoLensDatabase {
     if (!row) {
       throw new RepoLensError("project_not_found", "Project was not found.");
     }
-    return mapProjectDetail(row, this.listProjectTags(projectId));
+    return mapProjectDetail(row, this.listProjectTags(projectId), this.listProjectLinks(projectId));
   }
 
   getProjectByPath(rawPath: string): ProjectDetail | null {
     const projectPath = normalizeFsPath(rawPath);
     const row = this.db.prepare("SELECT * FROM projects WHERE path = ?").get(projectPath) as ProjectRow | undefined;
-    return row ? mapProjectDetail(row, this.listProjectTags(row.id)) : null;
+    return row ? mapProjectDetail(row, this.listProjectTags(row.id), this.listProjectLinks(row.id)) : null;
+  }
+
+  /** The registered project whose folder equals or contains the given path (deepest match wins). */
+  findProjectContainingPath(rawPath: string): ProjectDetail | null {
+    const target = normalizeFsPath(rawPath);
+    const rows = this.db.prepare("SELECT id, path FROM projects").all() as Array<{ id: string; path: string }>;
+    const match = rows
+      .filter((row) => target === row.path || target.startsWith(`${row.path}${path.sep}`))
+      .sort((left, right) => right.path.length - left.path.length)[0];
+    return match ? this.getProject(match.id) : null;
+  }
+
+  getTagByPath(tagPath: string): TagNode | null {
+    const row = this.db.prepare("SELECT id FROM tags WHERE path = ?").get(tagPath) as { id: string } | undefined;
+    return row ? this.getTag(row.id) : null;
   }
 
   updateProject(projectId: string, patch: ProjectUpdatePatch): ProjectDetail {
@@ -486,6 +535,9 @@ export class RepoLensDatabase {
           now,
           now
         );
+      if (input.autoLinks) {
+        this.replaceAutoLinks(input.id, input.autoLinks);
+      }
       return { project: this.getProject(input.id), created: true };
     }
 
@@ -519,16 +571,21 @@ export class RepoLensDatabase {
         now,
         existing.id
       );
+    if (input.autoLinks) {
+      this.replaceAutoLinks(existing.id, input.autoLinks);
+    }
 
     return { project: this.getProject(existing.id), created: false };
   }
 
   markMissingProjects(existingPaths: Set<string>): number {
-    const rows = this.db.prepare("SELECT id, path, status FROM projects").all() as ProjectRow[];
+    const rows = this.db.prepare("SELECT id, path, status, source FROM projects").all() as ProjectRow[];
     let changed = 0;
     const now = new Date().toISOString();
     for (const row of rows) {
-      if (!existingPaths.has(row.path) && row.status !== "missing") {
+      // Manual projects may live outside every scan root, so only their disappearance makes them missing.
+      const unseen = row.source === "manual" ? !fs.existsSync(row.path) : !existingPaths.has(row.path);
+      if (unseen && row.status !== "missing") {
         this.db.prepare("UPDATE projects SET status = 'missing', updated_at = ? WHERE id = ?").run(now, row.id);
         changed += 1;
       }
@@ -547,10 +604,201 @@ export class RepoLensDatabase {
     return this.getProject(projectId);
   }
 
+  addProjectTagLinks(projectId: string, tagIds: string[], source: TagSource): number {
+    this.getProject(projectId);
+    const insert = this.db.prepare("INSERT OR IGNORE INTO project_tag_links (project_id, tag_id, source) VALUES (?, ?, ?)");
+    let added = 0;
+    for (const tagId of new Set(tagIds)) {
+      added += Number(insert.run(projectId, tagId, source).changes);
+    }
+    if (added) {
+      this.touchProject(projectId);
+    }
+    return added;
+  }
+
+  removeProjectTagLinks(projectId: string, tagIds: string[]): number {
+    const remove = this.db.prepare("DELETE FROM project_tag_links WHERE project_id = ? AND tag_id = ?");
+    let removed = 0;
+    for (const tagId of new Set(tagIds)) {
+      removed += Number(remove.run(projectId, tagId).changes);
+    }
+    if (removed) {
+      this.touchProject(projectId);
+    }
+    return removed;
+  }
+
+  removeTagLinksBySource(projectId: string, sources: TagSource[]): number {
+    const result = this.db
+      .prepare(`DELETE FROM project_tag_links WHERE project_id = ? AND source IN (${sources.map(() => "?").join(", ")})`)
+      .run(projectId, ...sources);
+    const removed = Number(result.changes);
+    if (removed) {
+      this.touchProject(projectId);
+    }
+    return removed;
+  }
+
+  listProjectLinks(projectId: string): ProjectLink[] {
+    const rows = this.db
+      .prepare("SELECT * FROM project_links WHERE project_id = ? ORDER BY sort_order ASC, created_at ASC")
+      .all(projectId) as LinkRow[];
+    return rows.map(mapProjectLink).sort(compareLinks);
+  }
+
+  getProjectLink(id: string): ProjectLink {
+    const row = this.db.prepare("SELECT * FROM project_links WHERE id = ?").get(id) as LinkRow | undefined;
+    if (!row) {
+      throw new RepoLensError("link_not_found", "Project link was not found.");
+    }
+    return mapProjectLink(row);
+  }
+
+  addProjectLink(input: ProjectLinkInput): ProjectLink {
+    this.getProject(input.projectId);
+    const env = normalizeLinkEnv(input.env);
+    const url = normalizeLinkUrl(input.url);
+    const port = input.port === undefined ? portFromUrl(url) : normalizeLinkPort(input.port);
+    const existing = this.db
+      .prepare("SELECT * FROM project_links WHERE project_id = ? AND env = ? AND url = ?")
+      .get(input.projectId, env, url) as LinkRow | undefined;
+    const now = new Date().toISOString();
+    if (existing) {
+      // Re-adding a known link (e.g. an auto-detected one) claims it, so rescans stop replacing it.
+      this.db
+        .prepare("UPDATE project_links SET label = ?, port = ?, source = ?, updated_at = ? WHERE id = ?")
+        .run(input.label?.trim() || existing.label, port, input.source ?? "user", now, existing.id);
+      this.touchProject(input.projectId);
+      return this.getProjectLink(existing.id);
+    }
+    const id = `link_${randomUUID().replaceAll("-", "").slice(0, 18)}`;
+    this.db
+      .prepare(
+        `INSERT INTO project_links (id, project_id, env, label, url, port, source, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.projectId,
+        env,
+        input.label?.trim() ?? "",
+        url,
+        port,
+        input.source ?? "user",
+        this.nextLinkSortOrder(input.projectId),
+        now,
+        now
+      );
+    this.touchProject(input.projectId);
+    return this.getProjectLink(id);
+  }
+
+  updateProjectLink(id: string, patch: ProjectLinkPatch): ProjectLink {
+    const current = this.getProjectLink(id);
+    const url = patch.url === undefined ? current.url : normalizeLinkUrl(patch.url);
+    const port = patch.port !== undefined
+      ? normalizeLinkPort(patch.port)
+      : patch.url !== undefined
+        ? portFromUrl(url)
+        : current.port;
+    const now = new Date().toISOString();
+    this.db
+      .prepare("UPDATE project_links SET env = ?, label = ?, url = ?, port = ?, source = ?, updated_at = ? WHERE id = ?")
+      .run(
+        patch.env === undefined ? current.env : normalizeLinkEnv(patch.env),
+        patch.label === undefined ? current.label : patch.label.trim(),
+        url,
+        port,
+        current.source === "auto" ? "user" : current.source,
+        now,
+        id
+      );
+    this.touchProject(current.projectId);
+    return this.getProjectLink(id);
+  }
+
+  deleteProjectLink(id: string): ProjectLink {
+    const current = this.getProjectLink(id);
+    this.db.prepare("DELETE FROM project_links WHERE id = ?").run(id);
+    this.touchProject(current.projectId);
+    return current;
+  }
+
+  replaceAutoLinks(projectId: string, links: AutoLinkInput[]): void {
+    const kept = new Set(
+      (this.db
+        .prepare("SELECT env, url FROM project_links WHERE project_id = ? AND source <> 'auto'")
+        .all(projectId) as Array<{ env: string; url: string }>).map((row) => `${row.env} ${row.url}`)
+    );
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM project_links WHERE project_id = ? AND source = 'auto'").run(projectId);
+      const insert = this.db.prepare(
+        `INSERT INTO project_links (id, project_id, env, label, url, port, source, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'auto', ?, ?, ?)`
+      );
+      links.forEach((link, index) => {
+        const key = `${link.env} ${link.url}`;
+        if (kept.has(key)) {
+          return;
+        }
+        kept.add(key);
+        insert.run(idFromStableText("link", `${projectId} ${key}`), projectId, link.env, link.label, link.url, link.port, 1000 + index, now, now);
+      });
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  getSetting<T>(key: string): T | null {
+    const row = this.db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key) as { value: string } | undefined;
+    if (!row) {
+      return null;
+    }
+    try {
+      return JSON.parse(row.value) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  setSetting(key: string, value: unknown): void {
+    this.db
+      .prepare("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(key, JSON.stringify(value));
+  }
+
+  private listLinksByProject(): Map<string, ProjectLink[]> {
+    const rows = this.db.prepare("SELECT * FROM project_links ORDER BY sort_order ASC, created_at ASC").all() as LinkRow[];
+    const result = new Map<string, ProjectLink[]>();
+    for (const row of rows) {
+      result.set(row.project_id, [...(result.get(row.project_id) ?? []), mapProjectLink(row)]);
+    }
+    for (const links of result.values()) {
+      links.sort(compareLinks);
+    }
+    return result;
+  }
+
+  private nextLinkSortOrder(projectId: string): number {
+    const row = this.db
+      .prepare("SELECT coalesce(max(sort_order), -1) + 1 AS next_order FROM project_links WHERE project_id = ? AND source <> 'auto'")
+      .get(projectId) as { next_order: number } | undefined;
+    return Number(row?.next_order ?? 0);
+  }
+
+  private touchProject(projectId: string): void {
+    this.db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(new Date().toISOString(), projectId);
+  }
+
   private listProjectTags(projectId: string): ProjectTag[] {
     const rows = this.db
       .prepare(
-        `SELECT tags.id, tags.name, tags.path
+        `SELECT tags.id, tags.name, tags.path, project_tag_links.source
          FROM tags
          JOIN project_tag_links ON project_tag_links.tag_id = tags.id
          WHERE project_tag_links.project_id = ?
@@ -577,12 +825,18 @@ export class RepoLensDatabase {
       }
     }
 
+    const previousSources = new Map(
+      (this.db.prepare("SELECT tag_id, source FROM project_tag_links WHERE project_id = ?").all(projectId) as Array<{
+        tag_id: string;
+        source: TagSource;
+      }>).map((row) => [row.tag_id, row.source])
+    );
     this.db.exec("BEGIN");
     try {
       this.db.prepare("DELETE FROM project_tag_links WHERE project_id = ?").run(projectId);
-      const insert = this.db.prepare("INSERT INTO project_tag_links (project_id, tag_id) VALUES (?, ?)");
+      const insert = this.db.prepare("INSERT INTO project_tag_links (project_id, tag_id, source) VALUES (?, ?, ?)");
       for (const tagId of cleaned) {
-        insert.run(projectId, tagId);
+        insert.run(projectId, tagId, previousSources.get(tagId) ?? "user");
       }
       this.db.exec("COMMIT");
     } catch (error) {
@@ -758,9 +1012,26 @@ export class RepoLensDatabase {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS project_links (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        env TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL,
+        port INTEGER,
+        source TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_project_links_project_id ON project_links(project_id);
     `);
     this.ensureProjectFolderTimeColumns();
     this.ensureTagSortOrderColumn();
+    this.ensureTagLinkSourceColumn();
     this.migrateFlatTags();
   }
 
@@ -777,6 +1048,15 @@ export class RepoLensDatabase {
       this.db
         .prepare("UPDATE projects SET folder_updated_at = coalesce(last_modified_at, updated_at) WHERE folder_updated_at IS NULL")
         .run();
+    }
+  }
+
+  private ensureTagLinkSourceColumn(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(project_tag_links)").all() as Array<{ name: string }>).map((column) => column.name)
+    );
+    if (!columns.has("source")) {
+      this.db.prepare("ALTER TABLE project_tag_links ADD COLUMN source TEXT NOT NULL DEFAULT 'user'").run();
     }
   }
 
@@ -823,7 +1103,7 @@ function mapScanRoot(row: ScanRootRow): ScanRoot {
   };
 }
 
-function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListItem {
+function mapProjectListItem(row: ProjectRow, tags: ProjectTag[], links: ProjectLink[]): ProjectListItem {
   return {
     id: row.id,
     name: row.name,
@@ -832,6 +1112,7 @@ function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListIte
     techStacks: parseJsonArray(row.tech_stacks),
     status: row.status,
     tags,
+    links,
     lastModifiedAt: row.last_modified_at,
     source: row.source,
     favorite: Boolean(row.favorite),
@@ -840,9 +1121,9 @@ function mapProjectListItem(row: ProjectRow, tags: ProjectTag[]): ProjectListIte
   };
 }
 
-function mapProjectDetail(row: ProjectRow, tags: ProjectTag[]): ProjectDetail {
+function mapProjectDetail(row: ProjectRow, tags: ProjectTag[], links: ProjectLink[]): ProjectDetail {
   return {
-    ...mapProjectListItem(row, tags),
+    ...mapProjectListItem(row, tags, links),
     readmeSummary: row.readme_summary,
     startCommand: row.start_command,
     testCommand: row.test_command,
@@ -852,6 +1133,65 @@ function mapProjectDetail(row: ProjectRow, tags: ProjectTag[]): ProjectDetail {
     testCommandSource: row.test_command_source,
     lastScannedAt: row.last_scanned_at
   };
+}
+
+function mapProjectLink(row: LinkRow): ProjectLink {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    env: row.env,
+    label: row.label,
+    url: row.url,
+    port: row.port === null ? null : Number(row.port),
+    source: row.source,
+    sortOrder: Number(row.sort_order ?? 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function compareLinks(left: ProjectLink, right: ProjectLink): number {
+  const env = LINK_ENVS.indexOf(left.env) - LINK_ENVS.indexOf(right.env);
+  return env !== 0 ? env : left.sortOrder - right.sortOrder;
+}
+
+function normalizeLinkEnv(env: string): LinkEnv {
+  if (!LINK_ENVS.includes(env as LinkEnv)) {
+    throw new RepoLensError("link_env_invalid", `Link env must be one of: ${LINK_ENVS.join(", ")}.`);
+  }
+  return env as LinkEnv;
+}
+
+function normalizeLinkUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new RepoLensError("link_url_required", "Link URL is required.");
+  }
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  try {
+    return new URL(withScheme).toString().replace(/\/$/, "");
+  } catch {
+    throw new RepoLensError("link_url_invalid", `Invalid link URL: ${raw}`);
+  }
+}
+
+function normalizeLinkPort(port: number | null): number | null {
+  if (port === null) {
+    return null;
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new RepoLensError("link_port_invalid", "Port must be an integer between 1 and 65535.");
+  }
+  return port;
+}
+
+function portFromUrl(url: string): number | null {
+  try {
+    const port = new URL(url).port;
+    return port ? Number(port) : null;
+  } catch {
+    return null;
+  }
 }
 
 function mapTagNode(row: TagRow): TagNode {

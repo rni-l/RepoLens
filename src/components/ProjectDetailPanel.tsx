@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
-import type { AiTaggingStatus, ProjectDetail, ProjectUpdatePatch, TagNode } from "../lib/types";
+import { useEffect, useRef, useState } from "react";
+import { createTagPath } from "../lib/tagCreate";
+import type { AiTaggingStatus, ProjectDetail, TagNode } from "../lib/types";
+import { api } from "../lib/tauri";
 import { AiTagSuggestionPanel } from "./AiTagSuggestionPanel";
+import { ProjectLinksEditor } from "./ProjectLinksEditor";
 import { ProjectTagPicker } from "./ProjectTagPicker";
+
+const TAG_SOURCE_TITLES = { rule: "规则自动打标", agent: "AI 打标" } as const;
 
 type Props = {
   project: ProjectDetail | null;
   tags: TagNode[];
   aiStatus: AiTaggingStatus | null;
-  onSave(patch: ProjectUpdatePatch): void;
   onCopyPath(path: string): void;
   onSuggestionApplied(project: ProjectDetail): void;
+  onProjectChanged(project: ProjectDetail, message: string): void;
   onError(message: string): void;
 };
 
@@ -17,22 +22,97 @@ export function ProjectDetailPanel({
   project,
   tags,
   aiStatus,
-  onSave,
   onCopyPath,
   onSuggestionApplied,
+  onProjectChanged,
   onError
 }: Props) {
   const [description, setDescription] = useState("");
   const [startCommand, setStartCommand] = useState("");
   const [testCommand, setTestCommand] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [isSavingFields, setIsSavingFields] = useState(false);
+  const tagSaveSeq = useRef(0);
+  const tagSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const projectRef = useRef(project);
+  projectRef.current = project;
 
+  const tagKey = project?.tags.map((tag) => tag.id).join(",") ?? "";
+  const autoTagCount = project?.tags.filter((tag) => tag.source === "rule" || tag.source === "agent").length ?? 0;
+  const fieldsDirty =
+    Boolean(project) &&
+    (description !== (project?.description ?? "") ||
+      (startCommand.trim() || null) !== (project?.startCommand ?? null) ||
+      (testCommand.trim() || null) !== (project?.testCommand ?? null));
+
+  // Text drafts and tag selection reset independently, so saving tags never wipes unsaved text.
   useEffect(() => {
     setDescription(project?.description ?? "");
     setStartCommand(project?.startCommand ?? "");
     setTestCommand(project?.testCommand ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, project?.description, project?.startCommand, project?.testCommand]);
+
+  useEffect(() => {
     setSelectedTagIds(project?.tags.map((tag) => tag.id) ?? []);
-  }, [project]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, tagKey]);
+
+  async function saveFields() {
+    if (!project || isSavingFields) return;
+    setIsSavingFields(true);
+    try {
+      const next = await api.updateProject(project.id, {
+        description,
+        startCommand: startCommand.trim() || null,
+        testCommand: testCommand.trim() || null
+      });
+      onProjectChanged(next, "已保存，后续扫描不会覆盖");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSavingFields(false);
+    }
+  }
+
+  /** Saves immediately; saves run one at a time and only the latest result is applied. */
+  function changeTags(tagIds: string[], message = "标签已保存") {
+    const projectId = projectRef.current?.id;
+    if (!projectId) return;
+    setSelectedTagIds(tagIds);
+    const seq = ++tagSaveSeq.current;
+    tagSaveQueue.current = tagSaveQueue.current.then(async () => {
+      try {
+        const next = await api.updateProject(projectId, { tagIds });
+        if (seq === tagSaveSeq.current) {
+          onProjectChanged(next, message);
+        }
+      } catch (error) {
+        onError(error instanceof Error ? error.message : String(error));
+        if (seq === tagSaveSeq.current) {
+          setSelectedTagIds(projectRef.current?.tags.map((tag) => tag.id) ?? []);
+        }
+      }
+    });
+  }
+
+  async function createAndAddTag(path: string) {
+    try {
+      const tag = await createTagPath(path, tags);
+      changeTags(Array.from(new Set([...selectedTagIds, tag.id])), `已新建并添加标签 ${tag.path}`);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function clearAutoTags() {
+    if (!project) return;
+    try {
+      onProjectChanged(await api.clearAutoTags(project.id), "已清除自动标签");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   return (
     <section className="panel" data-od-id="project-detail">
@@ -61,34 +141,49 @@ export function ProjectDetailPanel({
               <span>测试命令</span>
               <input value={testCommand} onChange={(event) => setTestCommand(event.target.value)} />
             </label>
-            <label className="field">
-              <span>项目标签</span>
-              <ProjectTagPicker tags={tags} selectedTagIds={selectedTagIds} onChange={setSelectedTagIds} />
-            </label>
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={!fieldsDirty || isSavingFields}
+              onClick={() => void saveFields()}
+            >
+              {isSavingFields ? "保存中…" : fieldsDirty ? "保存描述和命令" : "描述和命令已保存"}
+            </button>
+            <ProjectLinksEditor project={project} onChanged={onProjectChanged} onError={onError} />
+            <div className="field">
+              <span>项目标签 <em className="field-hint">勾选即保存</em></span>
+              <ProjectTagPicker
+                tags={tags}
+                selectedTagIds={selectedTagIds}
+                onChange={(tagIds) => changeTags(tagIds)}
+                onCreateTag={createAndAddTag}
+              />
+            </div>
             <div className="tags tag-paths">
-              {project.tags.map((tag) => (
-                <span className="tag" key={tag.id} title={tag.path}>{tag.path.replaceAll("/", " / ")}</span>
-              ))}
+              {project.tags.map((tag) => {
+                const auto = tag.source === "rule" || tag.source === "agent";
+                return (
+                  <span
+                    className={`tag ${auto ? "tag-auto" : ""}`}
+                    key={tag.id}
+                    title={auto ? `${tag.path} · ${TAG_SOURCE_TITLES[tag.source as "rule" | "agent"]}` : tag.path}
+                  >
+                    {tag.path.replaceAll("/", " / ")}
+                    {auto ? <em>{tag.source === "rule" ? "规则" : "AI"}</em> : null}
+                  </span>
+                );
+              })}
+              {autoTagCount ? (
+                <button className="text-btn" type="button" onClick={() => void clearAutoTags()}>
+                  清除自动标签
+                </button>
+              ) : null}
             </div>
             <div className="tags">
               {project.techStacks.map((stack) => (
                 <span className="tag tag-muted" key={stack}>{stack}</span>
               ))}
             </div>
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={() =>
-                onSave({
-                  description,
-                  startCommand: startCommand.trim() || null,
-                  testCommand: testCommand.trim() || null,
-                  tagIds: selectedTagIds
-                })
-              }
-            >
-              保存人工字段
-            </button>
             <AiTagSuggestionPanel
               project={project}
               status={aiStatus}

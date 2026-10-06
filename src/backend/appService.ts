@@ -1,4 +1,6 @@
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type {
   AiTaggingStatus,
   ApplyTagSuggestionsInput,
@@ -11,6 +13,8 @@ import type {
   OpenActionAvailability,
   ProjectDetail,
   ProjectFilters,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectListItem,
   ProjectUpdatePatch,
   ScanRoot,
@@ -19,6 +23,7 @@ import type {
   TagCreateInput,
   TagMoveDirection,
   TagNode,
+  TagSource,
   TagUpdatePatch
 } from "../shared/types.js";
 import {
@@ -27,13 +32,41 @@ import {
   generateValidatedTagSuggestions,
   type AiTagProvider
 } from "./aiTagProvider.js";
+import { applyAutoTagRules } from "./autoTagRules.js";
 import { RepoLensDatabase } from "./database.js";
 import { RepoLensError } from "./errors.js";
-import { extractProjectMetadata, pathExists } from "./metadata.js";
+import { extractProjectMetadata, hasStrictProjectMarker, pathExists } from "./metadata.js";
 import { OpenAiCompatibleTagProvider } from "./openAiCompatibleTagProvider.js";
-import { detectOpenActions, openPath } from "./openActions.js";
-import { normalizeFsPath } from "./pathUtils.js";
+import { getIntegrationStatus } from "./integrations.js";
+import { detectOpenActions, openPath, openUrl } from "./openActions.js";
+import { isSubPath, normalizeFsPath } from "./pathUtils.js";
 import { scanRoots } from "./scanner.js";
+
+export type RegisterOptions = {
+  /**
+   * Hook/shell mode: only register folders inside an enabled scan root that look like projects
+   * (a marker file on the way down from the root). Explicit mode also accepts a bare folder.
+   */
+  auto?: boolean;
+  /** Allow folders outside every scan root (explicit mode only). */
+  force?: boolean;
+};
+
+export type RegisterResult =
+  | {
+      status: "registered" | "updated";
+      project: ProjectDetail;
+      addedRuleTags: string[];
+      /** No description yet, or no tags beyond rule tags: an agent should fill these in. */
+      needsEnrichment: boolean;
+    }
+  | {
+      status: "skipped";
+      reason: "outside_scan_roots" | "no_project_marker" | "not_a_directory";
+      path: string;
+      /** Looks like a freshly created folder for a new project. */
+      looksNew: boolean;
+    };
 
 type RepoLensServiceOptions = {
   aiProvider?: AiTagProvider | null;
@@ -77,6 +110,108 @@ export class RepoLensService implements AppApi {
     }
     const project = await extractProjectMetadata(projectPath, "manual");
     return this.database.upsertProject(project).project;
+  }
+
+  async registerProject(inputPath: string, options: RegisterOptions = {}): Promise<RegisterResult> {
+    const target = normalizeFsPath(inputPath);
+    const stats = await fs.stat(target).catch(() => null);
+    if (!stats?.isDirectory()) {
+      return { status: "skipped", reason: "not_a_directory", path: target, looksNew: false };
+    }
+
+    const existing = this.database.findProjectContainingPath(target);
+    if (existing) {
+      return this.upsertRegisteredProject(existing.path, existing.source, existing);
+    }
+
+    const root = this.findScanRoot(target);
+    if (!root && (options.auto || !options.force)) {
+      return { status: "skipped", reason: "outside_scan_roots", path: target, looksNew: false };
+    }
+
+    // Mirror the scanner: walking down from the root, the first folder with a marker is the project.
+    const candidates = root ? pathsFromRoot(root, target) : [target];
+    for (const candidate of candidates) {
+      const markers = await hasStrictProjectMarker(candidate).catch(() => []);
+      if (markers.length) {
+        return this.upsertRegisteredProject(candidate, root ? "scan" : "manual", null);
+      }
+    }
+
+    if (options.auto) {
+      return { status: "skipped", reason: "no_project_marker", path: target, looksNew: await looksLikeNewFolder(target, root) };
+    }
+    if (root && target === root) {
+      return { status: "skipped", reason: "no_project_marker", path: target, looksNew: false };
+    }
+    // An explicit register of a bare folder is a deliberate choice; "manual" keeps rescans from marking it missing.
+    return this.upsertRegisteredProject(target, "manual", null);
+  }
+
+  /** Accepts a project id, or any path inside a registered project. */
+  async resolveProject(ref: string): Promise<ProjectDetail> {
+    if (/^project_[0-9a-f]+$/.test(ref)) {
+      return this.database.getProject(ref);
+    }
+    const project = this.database.findProjectContainingPath(ref);
+    if (!project) {
+      throw new RepoLensError("project_not_found", `No registered project contains ${normalizeFsPath(ref)}. Run \`repolens register\` first.`);
+    }
+    return project;
+  }
+
+  async addProjectTagPaths(projectId: string, tagPaths: string[], source: TagSource): Promise<ProjectDetail> {
+    const tagIds = tagPaths.map((tagPath) => this.database.findOrCreateTagPath(splitTagPath(tagPath)).id);
+    this.database.addProjectTagLinks(projectId, tagIds, source);
+    return this.database.getProject(projectId);
+  }
+
+  async removeProjectTagPaths(projectId: string, tagPaths: string[]): Promise<ProjectDetail> {
+    const tagIds = tagPaths.map((tagPath) => {
+      const tag = this.database.getTagByPath(splitTagPath(tagPath).join("/"));
+      if (!tag) {
+        throw new RepoLensError("tag_not_found", `Tag was not found: ${tagPath}`);
+      }
+      return tag.id;
+    });
+    this.database.removeProjectTagLinks(projectId, tagIds);
+    return this.database.getProject(projectId);
+  }
+
+  async applyAutoTagRules(projectId: string): Promise<string[]> {
+    return applyAutoTagRules(this.database, projectId);
+  }
+
+  async clearAutoTags(projectId: string): Promise<ProjectDetail> {
+    this.database.removeTagLinksBySource(projectId, ["rule", "agent"]);
+    return this.database.getProject(projectId);
+  }
+
+  async addProjectLink(input: ProjectLinkInput): Promise<ProjectDetail> {
+    const link = this.database.addProjectLink(input);
+    return this.database.getProject(link.projectId);
+  }
+
+  async updateProjectLink(id: string, patch: ProjectLinkPatch): Promise<ProjectDetail> {
+    const link = this.database.updateProjectLink(id, patch);
+    return this.database.getProject(link.projectId);
+  }
+
+  async deleteProjectLink(id: string): Promise<ProjectDetail> {
+    const link = this.database.deleteProjectLink(id);
+    return this.database.getProject(link.projectId);
+  }
+
+  async openUrl(url: string): Promise<void> {
+    await openUrl(url);
+  }
+
+  async getIntegrationStatus() {
+    return getIntegrationStatus();
+  }
+
+  getDatabase(): RepoLensDatabase {
+    return this.database;
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -190,6 +325,34 @@ export class RepoLensService implements AppApi {
     await openPath(project.path, action);
   }
 
+  private async upsertRegisteredProject(
+    projectPath: string,
+    source: "scan" | "manual",
+    existing: ProjectDetail | null
+  ): Promise<RegisterResult> {
+    const metadata = await extractProjectMetadata(projectPath, source);
+    const { project, created } = this.database.upsertProject(metadata);
+    const addedRuleTags = created ? applyAutoTagRules(this.database, project.id) : [];
+    const current = this.database.getProject(project.id);
+    const hasCuratedTags = current.tags.some((tag) => tag.source !== "rule");
+    return {
+      status: existing ? "updated" : "registered",
+      project: current,
+      addedRuleTags,
+      needsEnrichment: !current.description?.trim() || !hasCuratedTags
+    };
+  }
+
+  private findScanRoot(target: string): string | null {
+    return (
+      this.database
+        .listScanRoots()
+        .filter((root) => root.enabled && isSubPath(root.path, target))
+        .map((root) => root.path)
+        .sort((left, right) => right.length - left.length)[0] ?? null
+    );
+  }
+
   private resolveAiProvider(): AiTagProvider | null {
     if (this.options.aiProvider !== undefined) {
       return this.options.aiProvider;
@@ -232,6 +395,36 @@ export class RepoLensService implements AppApi {
       this.database.refreshProjectFolderTimes(project.id, folderCreatedAt, folderUpdatedAt);
     }
   }
+}
+
+function pathsFromRoot(root: string, target: string): string[] {
+  const segments = path.relative(root, target).split(path.sep).filter(Boolean);
+  return [root, ...segments.map((_, index) => path.join(root, ...segments.slice(0, index + 1)))];
+}
+
+async function looksLikeNewFolder(target: string, root: string | null): Promise<boolean> {
+  if (!root || target === root || target === os.homedir()) {
+    return false;
+  }
+  const [entries, stats] = await Promise.all([
+    fs.readdir(target, { withFileTypes: true }).catch(() => null),
+    fs.stat(target).catch(() => null)
+  ]);
+  if (!entries || !stats) {
+    return false;
+  }
+  // Grouping folders hold subfolders; a fresh POC folder is recent and (nearly) empty.
+  const visible = entries.filter((entry) => !entry.name.startsWith("."));
+  const createdAt = stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.ctimeMs;
+  return visible.length <= 5 && !visible.some((entry) => entry.isDirectory()) && Date.now() - createdAt < 7 * 24 * 3600 * 1000;
+}
+
+function splitTagPath(tagPath: string): string[] {
+  const segments = tagPath.split("/").map((segment) => segment.trim()).filter(Boolean);
+  if (!segments.length) {
+    throw new RepoLensError("tag_name_required", "Tag path is required.");
+  }
+  return segments;
 }
 
 function dateToIso(date: Date): string | null {

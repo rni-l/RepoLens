@@ -1,14 +1,16 @@
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, FolderPlus, RefreshCw, Search, Settings, Tags, X } from "lucide-react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, FolderPlus, Plus, RefreshCw, Search, Settings, Tags, X } from "lucide-react";
 import { ProjectDetailPanel } from "../components/ProjectDetailPanel";
 import { ProjectSearchBar, type FilterKey, type TagFilterMode } from "../components/ProjectSearchBar";
 import { ProjectTable } from "../components/ProjectTable";
 import { TagTreeSelector } from "../components/TagTreeSelector";
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
+import { createTagPath, splitTagPath } from "../lib/tagCreate";
 import { pruneSelectedTagIds } from "../lib/tagState";
 import { api } from "../lib/tauri";
 import type {
   AiTaggingStatus,
+  IntegrationStatus,
   OpenAction,
   OpenActionAvailability,
   ProjectDetail,
@@ -66,6 +68,9 @@ export function ProjectLibraryPage() {
     if (filter === "favorite") {
       return { query, favoriteOnly: true, tagIds, excludedTagIds };
     }
+    if (filter === "untagged") {
+      return { query, untagged: true, tagIds, excludedTagIds };
+    }
     if (filter === "all") {
       return { query, tagIds, excludedTagIds };
     }
@@ -119,6 +124,24 @@ export function ProjectLibraryPage() {
   useEffect(() => {
     void loadProjectList().catch((error) => showToast(errorMessage(error)));
   }, [loadProjectList]);
+
+  // Background rescan on launch picks up projects created while the app was closed.
+  const launchScanStarted = useRef(false);
+  useEffect(() => {
+    if (launchScanStarted.current) return;
+    launchScanStarted.current = true;
+    void api
+      .scanAllRoots()
+      .then(async (summary) => {
+        setScanSummary(summary);
+        await Promise.all([loadProjectList(), loadWorkspaceState()]);
+        if (summary.addedProjects) {
+          showToast(`启动扫描发现 ${summary.addedProjects} 个新项目`);
+        }
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectIds.length) {
@@ -245,17 +268,6 @@ export function ProjectLibraryPage() {
     }
   }
 
-  async function saveSelected(patch: Parameters<typeof api.updateProject>[1]) {
-    if (!selectedProject) return;
-    try {
-      const next = await api.updateProject(selectedProject.id, patch);
-      setSelectedProject(next);
-      await load();
-      showToast("人工字段已保存，后续扫描不会覆盖");
-    } catch (error) {
-      showToast(errorMessage(error));
-    }
-  }
 
   async function createTag(input: TagCreateInput) {
     try {
@@ -306,6 +318,32 @@ export function ProjectLibraryPage() {
       setBulkTagIds((current) => pruneSelectedTagIds(current, remainingTagIds));
       await load();
       showToast("标签已删除");
+    } catch (error) {
+      showToast(errorMessage(error));
+    }
+  }
+
+  async function applyProjectChange(project: ProjectDetail, message: string) {
+    setSelectedProject(project);
+    showToast(message);
+    await load();
+  }
+
+  async function createTagFromPath(path: string): Promise<TagNode | null> {
+    try {
+      const tag = await createTagPath(path, tags);
+      setTags(await api.listTags());
+      showToast(`已新建标签 ${tag.path}`);
+      return tag;
+    } catch (error) {
+      showToast(errorMessage(error));
+      return null;
+    }
+  }
+
+  async function openUrl(url: string) {
+    try {
+      await api.openUrl(url);
     } catch (error) {
       showToast(errorMessage(error));
     }
@@ -398,10 +436,12 @@ export function ProjectLibraryPage() {
           onToggleAll={toggleAllVisibleProjects}
           onOpenProject={(projectId, action) => void openProject(projectId, action)}
           onCloseDrawer={() => setSelectedProject(null)}
-          onSaveSelected={(patch) => void saveSelected(patch)}
           onCopyPath={(path) => void copyPath(path)}
           aiStatus={aiStatus}
           onSuggestionApplied={(project) => void applySuggestedProject(project)}
+          onProjectChanged={(project, message) => void applyProjectChange(project, message)}
+          onOpenUrl={(url) => void openUrl(url)}
+          onCreateTag={createTagFromPath}
           onError={showToast}
         />
       ) : null}
@@ -534,9 +574,11 @@ type LibraryViewProps = {
   onToggleAll(): void;
   onOpenProject(projectId: string, action: OpenAction): void;
   onCloseDrawer(): void;
-  onSaveSelected(patch: Parameters<typeof api.updateProject>[1]): void;
   onCopyPath(path: string): void;
   onSuggestionApplied(project: ProjectDetail): void;
+  onProjectChanged(project: ProjectDetail, message: string): void;
+  onOpenUrl(url: string): void;
+  onCreateTag(path: string): Promise<TagNode | null>;
   onError(message: string): void;
 };
 
@@ -573,9 +615,11 @@ function LibraryView({
   onToggleAll,
   onOpenProject,
   onCloseDrawer,
-  onSaveSelected,
   onCopyPath,
   onSuggestionApplied,
+  onProjectChanged,
+  onOpenUrl,
+  onCreateTag,
   onError
 }: LibraryViewProps) {
   return (
@@ -636,6 +680,7 @@ function LibraryView({
             onToggleProject={onToggleProject}
             onToggleAll={onToggleAll}
             onOpen={onOpenProject}
+            onOpenUrl={onOpenUrl}
           />
         </div>
 
@@ -659,9 +704,9 @@ function LibraryView({
         tags={tags}
         aiStatus={aiStatus}
         onClose={onCloseDrawer}
-        onSave={onSaveSelected}
         onCopyPath={onCopyPath}
         onSuggestionApplied={onSuggestionApplied}
+        onProjectChanged={onProjectChanged}
         onError={onError}
       />
 
@@ -676,6 +721,7 @@ function LibraryView({
         onClearTags={() => onBulkTagChange([])}
         onClearProjects={onClearBulkSelection}
         onClose={onCloseBulkTagDrawer}
+        onCreateTag={onCreateTag}
       />
     </>
   );
@@ -722,6 +768,7 @@ type BulkTagDrawerProps = {
   onClearTags(): void;
   onClearProjects(): void;
   onClose(): void;
+  onCreateTag(path: string): Promise<TagNode | null>;
 };
 
 function BulkTagDrawer({
@@ -734,8 +781,10 @@ function BulkTagDrawer({
   onApply,
   onClearTags,
   onClearProjects,
-  onClose
+  onClose,
+  onCreateTag
 }: BulkTagDrawerProps) {
+  const [newTagPath, setNewTagPath] = useState("");
   const selectedTags = tags.filter((tag) => selectedTagIds.includes(tag.id));
 
   useEffect(() => {
@@ -779,9 +828,34 @@ function BulkTagDrawer({
             density="comfortable"
             disabled={disabled}
             searchPlaceholder="搜索要追加的标签"
-            emptyText="先在标签面板创建标签。"
+            emptyText="还没有标签，在下方新建。"
             ariaLabel="批量打标标签树"
           />
+          <form
+            className="bulk-tag-create"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const path = splitTagPath(newTagPath).join("/");
+              if (!path) return;
+              void onCreateTag(path).then((tag) => {
+                if (tag) {
+                  onTagChange(Array.from(new Set([...selectedTagIds, tag.id])));
+                  setNewTagPath("");
+                }
+              });
+            }}
+          >
+            <input
+              value={newTagPath}
+              placeholder="没有合适的？新建标签，如 业务领域/AI"
+              aria-label="新建标签"
+              disabled={disabled}
+              onChange={(event) => setNewTagPath(event.target.value)}
+            />
+            <button className="btn" type="submit" disabled={disabled || !splitTagPath(newTagPath).length}>
+              <Plus size={14} /> 新建并选中
+            </button>
+          </form>
           <section className="selected-tag-preview" aria-label="已选择标签">
             <div className="tag-filter-head">
               <span>已选标签</span>
@@ -831,9 +905,9 @@ type ProjectDetailDrawerProps = {
   tags: TagNode[];
   aiStatus: AiTaggingStatus | null;
   onClose(): void;
-  onSave(patch: Parameters<typeof api.updateProject>[1]): void;
   onCopyPath(path: string): void;
   onSuggestionApplied(project: ProjectDetail): void;
+  onProjectChanged(project: ProjectDetail, message: string): void;
   onError(message: string): void;
 };
 
@@ -842,9 +916,9 @@ function ProjectDetailDrawer({
   tags,
   aiStatus,
   onClose,
-  onSave,
   onCopyPath,
   onSuggestionApplied,
+  onProjectChanged,
   onError
 }: ProjectDetailDrawerProps) {
   useEffect(() => {
@@ -885,9 +959,9 @@ function ProjectDetailDrawer({
             project={project}
             tags={tags}
             aiStatus={aiStatus}
-            onSave={onSave}
             onCopyPath={onCopyPath}
             onSuggestionApplied={onSuggestionApplied}
+            onProjectChanged={onProjectChanged}
             onError={onError}
           />
         </div>
@@ -1337,6 +1411,11 @@ type SettingsPageProps = {
 };
 
 function SettingsPage({ roots, projects, openActions, aiStatus, scanSummary, onNavigate, onRefresh }: SettingsPageProps) {
+  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
+  useEffect(() => {
+    void api.getIntegrationStatus().then(setIntegrations).catch(() => setIntegrations([]));
+  }, [projects]);
+  const installedIntegrations = integrations.filter((item) => item.hookInstalled).length;
   const enabledCount = roots.filter((root) => root.enabled).length;
   const openAvailable = openActions.filter((action) => action.available).length;
   const latestRootUpdate = roots.map((root) => root.updatedAt).sort().at(-1) ?? null;
@@ -1393,6 +1472,37 @@ function SettingsPage({ roots, projects, openActions, aiStatus, scanSummary, onN
                 <span className={`badge ${action.available ? "" : "danger"}`}>{action.available ? "可用" : "不可用"}</span>
               </div>
             ))}
+          </div>
+        </article>
+
+        <article className="panel" data-od-id="integration-status">
+          <div className="panel-head">
+            <h2>自动登记集成</h2>
+            <span className={`badge ${installedIntegrations ? "" : "warn"}`}>
+              {installedIntegrations ? `${installedIntegrations} 个已接入` : "未接入"}
+            </span>
+          </div>
+          <div className="panel-body">
+            {integrations.map((item) => (
+              <div className="status-item" key={item.tool}>
+                <span>
+                  <strong>{item.label}</strong>
+                  <span className="meta">
+                    {item.hookInstalled
+                      ? item.tool === "shell"
+                        ? "cd 进项目时自动登记"
+                        : `会话开始自动登记${item.skillInstalled ? " · repolens Skill 已安装" : ""}`
+                      : item.detected
+                        ? `未接入，终端执行 repolens setup ${item.tool}`
+                        : "本机未检测到该工具"}
+                  </span>
+                </span>
+                <span className={`badge ${item.hookInstalled ? "" : item.detected ? "warn" : ""}`}>
+                  {item.hookInstalled ? "已接入" : item.detected ? "未接入" : "—"}
+                </span>
+              </div>
+            ))}
+            {!integrations.length ? <p className="muted">读取集成状态失败。</p> : null}
           </div>
         </article>
 

@@ -70,11 +70,9 @@ export async function openPath(projectPath: string, action: OpenAction): Promise
       await runCommand("open", ["-a", "Terminal", projectPath], "terminal_open_failed");
       return;
     case "iterm2":
-      await runCommand(
-        "osascript",
-        ["-e", `tell application "iTerm2" to create window with default profile command "cd ${escapeShell(projectPath)}"`],
-        "iterm_open_failed"
-      );
+      // `create window ... command "cd x"` runs cd as the session's only process, so the window
+      // closes immediately. Open a normal shell window and type the cd into it instead.
+      await runCommand("osascript", [...ITERM_OPEN_SCRIPT.flatMap((line) => ["-e", line]), projectPath], "iterm_open_failed");
       return;
     case "vscode":
       await runCommand("code", [projectPath], "vscode_open_failed");
@@ -86,6 +84,30 @@ export async function openPath(projectPath: string, action: OpenAction): Promise
       throw new RepoLensError("unknown_open_action", `Unknown open action: ${action}`);
   }
 }
+
+export async function openUrl(url: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new RepoLensError("link_url_invalid", `Invalid link URL: ${url}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new RepoLensError("link_url_invalid", "Only http and https links can be opened.");
+  }
+  await runCommand("open", [parsed.toString()], "url_open_failed");
+}
+
+// The path arrives as argv, so quotes or spaces in it cannot break the AppleScript.
+const ITERM_OPEN_SCRIPT = [
+  "on run argv",
+  'tell application "iTerm2"',
+  "activate",
+  "set newWindow to (create window with default profile)",
+  'tell current session of newWindow to write text "cd " & quoted form of (item 1 of argv) & " && clear"',
+  "end tell",
+  "end run"
+];
 
 async function commandExists(command: string): Promise<boolean> {
   try {
@@ -113,8 +135,4 @@ async function runCommand(command: string, args: string[], code: string): Promis
       resolve();
     });
   });
-}
-
-function escapeShell(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
 }

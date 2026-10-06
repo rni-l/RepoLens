@@ -4,10 +4,14 @@
   "private": true,
   "description": "Local desktop code project catalog.",
   "type": "module",
+  "bin": {
+    "repolens": "dist-backend/src/backend/repolensCli.js"
+  },
   "scripts": {
     "dev": "vite",
     "build": "npm run build:backend && vite build",
     "build:backend": "tsc -p tsconfig.backend.json",
+    "install:cli": "npm run build:backend && npm link",
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.backend.json --noEmit",

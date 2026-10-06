@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ScanError, ScanSummary } from "../shared/types.js";
+import { applyAutoTagRules } from "./autoTagRules.js";
 import type { RepoLensDatabase } from "./database.js";
 import { IGNORED_DIRECTORIES, extractProjectMetadata, hasStrictProjectMarker } from "./metadata.js";
 import { normalizeFsPath } from "./pathUtils.js";
@@ -38,6 +39,7 @@ export async function scanRoots(options: ScanOptions): Promise<ScanSummary> {
       summary.discoveredProjects += 1;
       if (result.created) {
         summary.addedProjects += 1;
+        applyAutoTagRules(options.database, result.project.id);
       } else {
         summary.updatedProjects += 1;
       }

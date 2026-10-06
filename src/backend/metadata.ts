@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ScanError } from "../shared/types.js";
 import { idFromPath, normalizeFsPath } from "./pathUtils.js";
-import type { ProjectUpsertInput } from "./database.js";
+import type { AutoLinkInput, ProjectUpsertInput } from "./database.js";
 
 export const STRICT_PROJECT_MARKERS = [
   ".git",
@@ -15,7 +15,13 @@ export const STRICT_PROJECT_MARKERS = [
   "deno.json",
   "tsconfig.json",
   "vite.config.ts",
-  "next.config.js"
+  "vite.config.js",
+  "vite.config.mjs",
+  "next.config.js",
+  "next.config.mjs",
+  "next.config.ts",
+  "Cargo.toml",
+  "go.mod"
 ] as const;
 
 export const IGNORED_DIRECTORIES = new Set([
@@ -64,6 +70,7 @@ export async function extractProjectMetadata(projectPathInput: string, source: "
   const techStacks = detectTechStacks(projectPath, markerNames);
   const { startCommand, testCommand } = detectCommands(packageJson, markerNames);
   const entryFiles = await detectEntryFiles(projectPath);
+  const autoLinks = await detectLocalLinks(projectPath, packageJson, techStacks);
   const now = new Date().toISOString();
 
   return {
@@ -82,6 +89,7 @@ export async function extractProjectMetadata(projectPathInput: string, source: "
     folderCreatedAt: dateToIso(stats.birthtime) ?? dateToIso(stats.ctime),
     folderUpdatedAt: dateToIso(stats.mtime),
     lastScannedAt: now,
+    autoLinks,
     markerNames,
     extractionErrors
   };
@@ -147,10 +155,10 @@ function detectTechStacks(projectPath: string, markerNames: string[]): string[] 
   if (markerSet.has("tsconfig.json")) {
     stacks.add("TypeScript");
   }
-  if (markerSet.has("vite.config.ts")) {
+  if (markerNames.some((marker) => marker.startsWith("vite.config."))) {
     stacks.add("Vite");
   }
-  if (markerSet.has("next.config.js")) {
+  if (markerNames.some((marker) => marker.startsWith("next.config."))) {
     stacks.add("Next.js");
   }
   if (markerSet.has("pyproject.toml") || markerSet.has("requirements.txt")) {
@@ -161,6 +169,12 @@ function detectTechStacks(projectPath: string, markerNames: string[]): string[] 
   }
   if (markerSet.has("composer.json")) {
     stacks.add("PHP");
+  }
+  if (markerSet.has("Cargo.toml")) {
+    stacks.add("Rust");
+  }
+  if (markerSet.has("go.mod")) {
+    stacks.add("Go");
   }
   if (projectPath.includes("feishu") || projectPath.includes("飞书")) {
     stacks.add("Feishu");
@@ -186,6 +200,103 @@ function detectCommands(packageJson: PackageJson | null, markerNames: string[]):
   }
 
   return { startCommand: null, testCommand: null };
+}
+
+const PORT_SCRIPT_NAMES = ["dev", "start", "serve", "preview", "server"];
+const ENV_FILES = [".env", ".env.local", ".env.development", ".env.development.local"];
+// Databases and brokers commonly published by compose files; not something to open in a browser.
+const NON_HTTP_PORTS = new Set([1433, 1521, 2181, 3306, 5432, 5672, 6379, 9092, 11211, 27017]);
+const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"];
+
+/** Best-effort local URLs from scripts, configs and env files; never throws. */
+export async function detectLocalLinks(
+  projectPath: string,
+  packageJson: PackageJson | null,
+  techStacks: string[]
+): Promise<AutoLinkInput[]> {
+  const found = new Map<number, string>();
+  const add = (port: number, label: string) => {
+    if (Number.isInteger(port) && port >= 80 && port <= 65535 && !found.has(port)) {
+      found.set(port, label);
+    }
+  };
+
+  const scripts = packageJson?.scripts ?? {};
+  for (const name of [...PORT_SCRIPT_NAMES, ...Object.keys(scripts)]) {
+    const script = scripts[name];
+    if (typeof script !== "string") {
+      continue;
+    }
+    for (const port of portsInCommand(script)) {
+      add(port, name);
+    }
+  }
+
+  for (const file of ["vite.config.ts", "vite.config.js", "vite.config.mjs", "vite.config.mts"]) {
+    const raw = await readOptionalFile(path.join(projectPath, file));
+    const match = raw?.match(/\bport\s*:\s*(\d{2,5})/);
+    if (match) {
+      add(Number(match[1]), "vite");
+    }
+  }
+
+  for (const file of ENV_FILES) {
+    const raw = await readOptionalFile(path.join(projectPath, file));
+    for (const match of raw?.matchAll(/^\s*(?:export\s+)?(?:VITE_|APP_|SERVER_|WEB_|API_|FRONTEND_|BACKEND_)?PORT\s*=\s*["']?(\d{2,5})/gm) ?? []) {
+      add(Number(match[1]), file);
+    }
+  }
+
+  for (const file of COMPOSE_FILES) {
+    const raw = await readOptionalFile(path.join(projectPath, file));
+    for (const match of raw?.matchAll(/^\s*-\s*["']?(?:[\d.]+:)?(\d{2,5}):\d{2,5}(?:\/\w+)?["']?\s*$/gm) ?? []) {
+      if (!NON_HTTP_PORTS.has(Number(match[1]))) {
+        add(Number(match[1]), "docker");
+      }
+    }
+  }
+
+  for (const file of ["main.py", "app.py", "manage.py"]) {
+    const raw = await readOptionalFile(path.join(projectPath, file));
+    const match = raw?.match(/\bport\s*=\s*(\d{4,5})/);
+    if (match) {
+      add(Number(match[1]), "python");
+    }
+  }
+
+  if (!found.size) {
+    const devScript = typeof scripts.dev === "string" ? scripts.dev : "";
+    if (techStacks.includes("Next.js") || /\bnext\s+dev\b/.test(devScript)) {
+      add(3000, "next 默认");
+    } else if (techStacks.includes("Vite") || /\bvite\b/.test(devScript)) {
+      add(5173, "vite 默认");
+    }
+  }
+
+  return Array.from(found, ([port, label]) => ({
+    env: "local" as const,
+    label,
+    url: `http://localhost:${port}`,
+    port
+  }));
+}
+
+export function portsInCommand(command: string): number[] {
+  const ports: number[] = [];
+  for (const match of command.matchAll(/(?:--port[=\s]+|(?:^|\s)-p\s+|\bPORT=)(\d{2,5})\b/g)) {
+    ports.push(Number(match[1]));
+  }
+  return ports;
+}
+
+async function readOptionalFile(filePath: string): Promise<string | null> {
+  try {
+    const stats = await fs.stat(filePath);
+    // Skip huge files; configs that matter here are small.
+    return stats.isFile() && stats.size < 256 * 1024 ? await fs.readFile(filePath, "utf8") : null;
+  } catch {
+    return null;
+  }
 }
 
 async function detectEntryFiles(projectPath: string): Promise<string[]> {

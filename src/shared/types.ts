@@ -29,10 +29,46 @@ export type TagNode = {
   updatedAt: string;
 };
 
+export type TagSource = "user" | "rule" | "agent";
+
 export type ProjectTag = {
   id: string;
   name: string;
   path: string;
+  source?: TagSource;
+};
+
+export type LinkEnv = "local" | "test" | "prod" | "other";
+
+export type LinkSource = "auto" | "user" | "agent";
+
+export type ProjectLink = {
+  id: string;
+  projectId: string;
+  env: LinkEnv;
+  label: string;
+  url: string;
+  port: number | null;
+  source: LinkSource;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProjectLinkInput = {
+  projectId: string;
+  env: LinkEnv;
+  url: string;
+  label?: string;
+  port?: number | null;
+  source?: Exclude<LinkSource, "auto">;
+};
+
+export type ProjectLinkPatch = {
+  env?: LinkEnv;
+  url?: string;
+  label?: string;
+  port?: number | null;
 };
 
 export type TagCreateInput = {
@@ -104,6 +140,7 @@ export type ProjectListItem = {
   techStacks: string[];
   status: ProjectStatus;
   tags: ProjectTag[];
+  links: ProjectLink[];
   lastModifiedAt: string | null;
   source: ProjectSource;
   favorite: boolean;
@@ -141,6 +178,7 @@ export type ProjectFilters = {
   scanRootId?: string;
   source?: ProjectSource;
   favoriteOnly?: boolean;
+  untagged?: boolean;
 };
 
 export type ProjectUpdatePatch = {
@@ -197,6 +235,18 @@ export type OpenActionAvailability = {
   reason?: string;
 };
 
+export type IntegrationTool = "claude" | "codex" | "opencode" | "omp" | "shell";
+
+export type IntegrationStatus = {
+  tool: IntegrationTool;
+  label: string;
+  /** The tool itself seems to be installed on this machine. */
+  detected: boolean;
+  hookInstalled: boolean;
+  skillInstalled: boolean;
+  files: string[];
+};
+
 export type AppApi = {
   listProjects(filters?: ProjectFilters): Promise<ProjectListItem[]>;
   getProject(projectId: string): Promise<ProjectDetail>;
@@ -220,4 +270,10 @@ export type AppApi = {
   scanRoot(rootId: string): Promise<ScanSummary>;
   detectOpenActions(): Promise<OpenActionAvailability[]>;
   openProject(projectId: string, action: OpenAction): Promise<void>;
+  addProjectLink(input: ProjectLinkInput): Promise<ProjectDetail>;
+  updateProjectLink(id: string, patch: ProjectLinkPatch): Promise<ProjectDetail>;
+  deleteProjectLink(id: string): Promise<ProjectDetail>;
+  clearAutoTags(projectId: string): Promise<ProjectDetail>;
+  openUrl(url: string): Promise<void>;
+  getIntegrationStatus(): Promise<IntegrationStatus[]>;
 };

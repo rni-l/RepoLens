@@ -4,6 +4,7 @@ import type {
   OpenActionAvailability,
   ProjectListItem,
 } from "../lib/types";
+import { LINK_ENV_LABELS } from "./ProjectLinksEditor";
 import { ProjectRowActions } from "./ProjectRowActions";
 
 const INTERACTIVE_ROW_TARGET_SELECTOR = [
@@ -25,6 +26,7 @@ type Props = {
   onToggleProject(projectId: string, checked: boolean): void;
   onToggleAll(): void;
   onOpen(projectId: string, action: OpenAction): void;
+  onOpenUrl(url: string): void;
 };
 
 export function ProjectTable({
@@ -36,6 +38,7 @@ export function ProjectTable({
   onToggleProject,
   onToggleAll,
   onOpen,
+  onOpenUrl,
 }: Props) {
   const selected = new Set(selectedProjectIds);
   const allVisibleSelected =
@@ -77,7 +80,7 @@ export function ProjectTable({
               </th>
               <th className="col-project">项目</th>
               <th className="col-tags">标签</th>
-              <th className="col-time">创建时间</th>
+              <th className="col-time col-created">创建时间</th>
               <th className="col-time">最后更新</th>
               <th className="col-open">打开方式</th>
             </tr>
@@ -157,7 +160,28 @@ export function ProjectTable({
                       {project.favorite ? "★ " : ""}
                       {project.name}
                     </strong>
-                    <span className="path">{project.path}</span>
+                    {project.description ? (
+                      <span className="project-desc" title={project.description}>
+                        {project.description}
+                      </span>
+                    ) : null}
+                    <span className="path" title={project.path}>{project.path}</span>
+                    {project.links.length ? (
+                      <span className="row-links">
+                        {firstLinkPerEnv(project.links).map((link) => (
+                          <button
+                            className={`env-badge env-${link.env}`}
+                            type="button"
+                            key={link.id}
+                            title={`${link.label ? `${link.label} · ` : ""}${link.url}`}
+                            onClick={() => onOpenUrl(link.url)}
+                          >
+                            {LINK_ENV_LABELS[link.env]}
+                            {link.port && link.env === "local" ? ` :${link.port}` : ""}
+                          </button>
+                        ))}
+                      </span>
+                    ) : null}
                     <span className="mobile-meta">
                       文件夹创建 {formatDateTime(project.createdAt)} · 更新{" "}
                       {formatDateTime(project.updatedAt)}
@@ -179,11 +203,11 @@ export function ProjectTable({
                       ))}
                   </span>
                 </td>
-                <td className="col-time mono" title="真实文件夹创建时间">
-                  {formatDateTime(project.createdAt)}
+                <td className="col-time col-created mono" title="真实文件夹创建时间">
+                  <DateTimeCell value={project.createdAt} />
                 </td>
-                <td className="col-time mono">
-                  {formatDateTime(project.updatedAt)}
+                <td className="col-time mono" title={`文件夹创建 ${formatDateTime(project.createdAt)}`}>
+                  <DateTimeCell value={project.updatedAt} />
                 </td>
                 <td className="col-open">
                   <ProjectRowActions
@@ -198,6 +222,21 @@ export function ProjectTable({
         </table>
       )}
     </section>
+  );
+}
+
+function firstLinkPerEnv(links: ProjectListItem["links"]): ProjectListItem["links"] {
+  const seen = new Set<string>();
+  return links.filter((link) => !seen.has(link.env) && Boolean(seen.add(link.env)));
+}
+
+function DateTimeCell({ value }: { value: string | null }) {
+  const [date, time] = formatDateTime(value).split(" ");
+  return (
+    <span className="datetime">
+      <span>{date}</span>
+      {time ? <span>{time}</span> : null}
+    </span>
   );
 }
 

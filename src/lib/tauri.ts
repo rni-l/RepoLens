@@ -6,6 +6,8 @@ import type {
   GenerateTagSuggestionsInput,
   OpenAction,
   ProjectFilters,
+  ProjectLinkInput,
+  ProjectLinkPatch,
   ProjectUpdatePatch,
   ScanRootUpdatePatch,
   TagCreateInput,
@@ -46,6 +48,12 @@ export const api: AppApi = isTauri
       scanAllRoots: () => call("scan_all_roots"),
       scanRoot: (rootId: string) => call("scan_root", { rootId }),
       detectOpenActions: () => call("detect_open_actions"),
-      openProject: (projectId: string, action: OpenAction) => call("open_project", { projectId, action })
+      openProject: (projectId: string, action: OpenAction) => call("open_project", { projectId, action }),
+      addProjectLink: (input: ProjectLinkInput) => call("add_project_link", { input }),
+      updateProjectLink: (id: string, patch: ProjectLinkPatch) => call("update_project_link", { id, patch }),
+      deleteProjectLink: (id: string) => call("delete_project_link", { id }),
+      clearAutoTags: (projectId: string) => call("clear_auto_tags", { projectId }),
+      openUrl: (url: string) => call("open_url", { url }),
+      getIntegrationStatus: () => call("get_integration_status")
     }
   : mockApi;

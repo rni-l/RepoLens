@@ -66,6 +66,18 @@ async function dispatch(request: CliRequest): Promise<unknown> {
       return service.detectOpenActions();
     case "open_project":
       return service.openProject(String(args.projectId), args.action as never);
+    case "add_project_link":
+      return service.addProjectLink((args.input ?? {}) as never);
+    case "update_project_link":
+      return service.updateProjectLink(String(args.id), (args.patch ?? {}) as never);
+    case "delete_project_link":
+      return service.deleteProjectLink(String(args.id));
+    case "clear_auto_tags":
+      return service.clearAutoTags(String(args.projectId));
+    case "open_url":
+      return service.openUrl(String(args.url));
+    case "get_integration_status":
+      return service.getIntegrationStatus();
     default:
       throw new Error(`Unknown command: ${request.command}`);
   }
