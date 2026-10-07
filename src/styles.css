@@ -1843,6 +1843,195 @@ input[type="checkbox"] {
   font-weight: 800;
 }
 
+.project-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Sorting + pinning */
+.sort-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.sort-label,
+.sort-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.sort-label {
+  margin-right: var(--space-1);
+  letter-spacing: 0.04em;
+}
+
+.sort-hint {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.sort-chip {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+
+.sort-chip:hover {
+  border-color: color-mix(in oklab, var(--accent), transparent 48%);
+}
+
+.sort-chip.is-active {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent), transparent 48%);
+  background: color-mix(in oklab, var(--accent), transparent 91%);
+}
+
+.pin-btn {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--meta);
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+
+tbody tr:hover .pin-btn,
+tbody tr:focus-within .pin-btn,
+.pin-btn:focus-visible,
+.pin-btn.is-pinned {
+  opacity: 1;
+}
+
+.pin-btn:hover {
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.pin-btn.is-pinned {
+  color: var(--accent);
+}
+
+.pin-btn.is-pinned svg,
+.pin-toggle.is-pinned svg {
+  fill: currentColor;
+}
+
+@media (hover: none) {
+  .pin-btn {
+    opacity: 1;
+  }
+}
+
+tbody tr.is-pinned:not(:hover):not(.is-selected) {
+  background: color-mix(in oklab, var(--accent), transparent 97%);
+}
+
+.priority-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+  background: color-mix(in oklab, var(--priority-color), transparent 86%);
+  color: color-mix(in oklab, var(--priority-color), var(--fg) 35%);
+}
+
+.priority-3 {
+  --priority-color: var(--danger);
+}
+
+.priority-2 {
+  --priority-color: var(--warn);
+}
+
+.priority-1 {
+  --priority-color: var(--success);
+}
+
+.priority-0 {
+  --priority-color: var(--muted);
+}
+
+.rank-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pin-toggle.is-pinned {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent), transparent 48%);
+  background: color-mix(in oklab, var(--accent), transparent 91%);
+}
+
+.priority-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.priority-picker > span {
+  margin-right: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.priority-option {
+  min-width: 32px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.priority-option:hover {
+  border-color: color-mix(in oklab, var(--priority-color), transparent 40%);
+}
+
+.priority-option.is-active {
+  border-color: color-mix(in oklab, var(--priority-color), transparent 40%);
+  background: color-mix(in oklab, var(--priority-color), transparent 86%);
+  color: color-mix(in oklab, var(--priority-color), var(--fg) 35%);
+}
+
 .mono,
 .mobile-meta,
 .meta {
@@ -1951,6 +2140,15 @@ td.col-open .actions {
 
 .drawer .panel-body {
   padding: 0;
+}
+
+/* 项目标签: once scrolled to, the tree fills the screen below the sticky drawer head and search box.
+   A fixed height keeps the layout still while the search narrows the list. */
+.drawer .tag-picker {
+  max-height: none;
+  height: calc(100dvh - 180px);
+  min-height: 320px;
+  align-content: start;
 }
 
 .management-layout {

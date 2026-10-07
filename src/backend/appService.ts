@@ -74,6 +74,8 @@ type RepoLensServiceOptions = {
 };
 
 export class RepoLensService implements AppApi {
+  private lastFolderRefreshAt = 0;
+
   constructor(
     private readonly database: RepoLensDatabase = new RepoLensDatabase(),
     private readonly options: RepoLensServiceOptions = {}
@@ -379,22 +381,43 @@ export class RepoLensService implements AppApi {
     return env.REPOLENS_AI_DISABLED === "1" || env.REPOLENS_AI_PROVIDER === "disabled";
   }
 
+  /**
+   * Stats every project folder, at most once per FOLDER_REFRESH_INTERVAL_MS: the desktop backend is
+   * long-lived, and re-statting hundreds of folders on every list call made the UI sluggish.
+   */
   private async refreshFolderTimesForList(): Promise<void> {
-    const projects = this.database.listProjects({});
-    await Promise.all(projects.map((project) => this.refreshFolderTimes(project)));
-  }
-
-  private async refreshFolderTimes(project: ProjectListItem): Promise<void> {
-    const stats = await fs.stat(project.path).catch(() => null);
-    if (!stats?.isDirectory()) {
+    if (Date.now() - this.lastFolderRefreshAt < FOLDER_REFRESH_INTERVAL_MS) {
       return;
     }
-    const folderCreatedAt = dateToIso(stats.birthtime) ?? dateToIso(stats.ctime);
-    const folderUpdatedAt = dateToIso(stats.mtime);
-    if (folderCreatedAt !== project.createdAt || folderUpdatedAt !== project.updatedAt) {
-      this.database.refreshProjectFolderTimes(project.id, folderCreatedAt, folderUpdatedAt);
+    this.lastFolderRefreshAt = Date.now();
+    const projects = this.database.listProjectFolderTimes();
+    const changes = await Promise.all(projects.map((project) => folderTimeChange(project)));
+    this.database.refreshProjectFolderTimesBatch(changes.filter((change) => change !== null));
+  }
+
+  private async refreshFolderTimes(project: Pick<ProjectListItem, "id" | "path" | "createdAt" | "updatedAt">): Promise<void> {
+    const change = await folderTimeChange(project);
+    if (change) {
+      this.database.refreshProjectFolderTimes(change.id, change.folderCreatedAt, change.folderUpdatedAt);
     }
   }
+}
+
+const FOLDER_REFRESH_INTERVAL_MS = 30_000;
+
+async function folderTimeChange(
+  project: Pick<ProjectListItem, "id" | "path" | "createdAt" | "updatedAt">
+): Promise<{ id: string; folderCreatedAt: string | null; folderUpdatedAt: string | null } | null> {
+  const stats = await fs.stat(project.path).catch(() => null);
+  if (!stats?.isDirectory()) {
+    return null;
+  }
+  const folderCreatedAt = dateToIso(stats.birthtime) ?? dateToIso(stats.ctime);
+  const folderUpdatedAt = dateToIso(stats.mtime);
+  if (folderCreatedAt === project.createdAt && folderUpdatedAt === project.updatedAt) {
+    return null;
+  }
+  return { id: project.id, folderCreatedAt, folderUpdatedAt };
 }
 
 function pathsFromRoot(root: string, target: string): string[] {

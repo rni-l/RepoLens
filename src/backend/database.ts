@@ -14,6 +14,7 @@ import type {
   ProjectLinkInput,
   ProjectLinkPatch,
   ProjectListItem,
+  ProjectPriority,
   ProjectSource,
   ProjectStatus,
   ProjectTag,
@@ -36,6 +37,8 @@ type ProjectRow = {
   source: ProjectSource;
   status: ProjectStatus;
   favorite: number;
+  pinned: number;
+  priority: number;
   description: string | null;
   description_source: FieldSource;
   readme_summary: string | null;
@@ -339,11 +342,12 @@ export class RepoLensDatabase {
     if (clauses.length) {
       sql += ` WHERE ${clauses.join(" AND ")}`;
     }
-    sql += " ORDER BY favorite DESC, coalesce(folder_updated_at, updated_at) DESC, name ASC";
+    sql += " ORDER BY pinned DESC, favorite DESC, coalesce(folder_updated_at, updated_at) DESC, name ASC";
 
     const linksByProject = this.listLinksByProject();
+    const tagsByProject = this.listTagsByProject();
     let projects = (this.db.prepare(sql).all(...params) as ProjectRow[]).map((row) =>
-      mapProjectListItem(row, this.listProjectTags(row.id), linksByProject.get(row.id) ?? [])
+      mapProjectListItem(row, tagsByProject.get(row.id) ?? [], linksByProject.get(row.id) ?? [])
     );
 
     if (filters.techStacks?.length) {
@@ -407,6 +411,8 @@ export class RepoLensDatabase {
       descriptionSource: patch.description === undefined ? current.descriptionSource : "user",
       status: patch.status ?? current.status,
       favorite: patch.favorite ?? current.favorite,
+      pinned: patch.pinned ?? current.pinned,
+      priority: patch.priority === undefined ? current.priority : normalizePriority(patch.priority),
       startCommand: patch.startCommand === undefined ? current.startCommand : patch.startCommand,
       startCommandSource: patch.startCommand === undefined ? current.startCommandSource : "user",
       testCommand: patch.testCommand === undefined ? current.testCommand : patch.testCommand,
@@ -416,7 +422,7 @@ export class RepoLensDatabase {
     this.db
       .prepare(
         `UPDATE projects
-         SET name = ?, description = ?, description_source = ?, status = ?, favorite = ?,
+         SET name = ?, description = ?, description_source = ?, status = ?, favorite = ?, pinned = ?, priority = ?,
              start_command = ?, start_command_source = ?, test_command = ?, test_command_source = ?,
              updated_at = ?
          WHERE id = ?`
@@ -427,6 +433,8 @@ export class RepoLensDatabase {
         next.descriptionSource,
         next.status,
         next.favorite ? 1 : 0,
+        next.pinned ? 1 : 0,
+        next.priority,
         next.startCommand,
         next.startCommandSource,
         next.testCommand,
@@ -602,6 +610,46 @@ export class RepoLensDatabase {
       .prepare("UPDATE projects SET folder_created_at = ?, folder_updated_at = ?, updated_at = ? WHERE id = ?")
       .run(nextCreatedAt, nextUpdatedAt, now, projectId);
     return this.getProject(projectId);
+  }
+
+  /** Just enough of every project to compare against the real folder timestamps. */
+  listProjectFolderTimes(): Array<{ id: string; path: string; createdAt: string; updatedAt: string }> {
+    return (
+      this.db
+        .prepare(
+          `SELECT id, path,
+                  coalesce(folder_created_at, created_at) AS created_at,
+                  coalesce(folder_updated_at, updated_at) AS updated_at
+           FROM projects`
+        )
+        .all() as Array<{ id: string; path: string; created_at: string; updated_at: string }>
+    ).map((row) => ({ id: row.id, path: row.path, createdAt: row.created_at, updatedAt: row.updated_at }));
+  }
+
+  refreshProjectFolderTimesBatch(
+    changes: Array<{ id: string; folderCreatedAt: string | null; folderUpdatedAt: string | null }>
+  ): void {
+    if (!changes.length) {
+      return;
+    }
+    const now = new Date().toISOString();
+    const update = this.db.prepare(
+      `UPDATE projects
+       SET folder_created_at = coalesce(?, folder_created_at, created_at),
+           folder_updated_at = coalesce(?, folder_updated_at, updated_at),
+           updated_at = ?
+       WHERE id = ?`
+    );
+    this.db.exec("BEGIN");
+    try {
+      for (const change of changes) {
+        update.run(change.folderCreatedAt, change.folderUpdatedAt, now, change.id);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw new RepoLensError("database_failed", error instanceof Error ? error.message : String(error));
+    }
   }
 
   addProjectTagLinks(projectId: string, tagIds: string[], source: TagSource): number {
@@ -801,15 +849,35 @@ export class RepoLensDatabase {
         `SELECT tags.id, tags.name, tags.path, project_tag_links.source
          FROM tags
          JOIN project_tag_links ON project_tag_links.tag_id = tags.id
-         WHERE project_tag_links.project_id = ?
-         ORDER BY tags.path ASC`
+         WHERE project_tag_links.project_id = ?`
       )
       .all(projectId) as ProjectTag[];
-    const linked = new Map(rows.map((tag) => [tag.id, tag]));
-    return this.listTags().flatMap((tag) => {
-      const linkedTag = linked.get(tag.id);
-      return linkedTag ? [linkedTag] : [];
-    });
+    return sortByTagTreeOrder(rows, this.tagTreeOrder());
+  }
+
+  /** All project tags in one query, each project's tags in tag-tree order. */
+  private listTagsByProject(): Map<string, ProjectTag[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT project_tag_links.project_id, tags.id, tags.name, tags.path, project_tag_links.source
+         FROM project_tag_links
+         JOIN tags ON tags.id = project_tag_links.tag_id`
+      )
+      .all() as Array<ProjectTag & { project_id: string }>;
+    const result = new Map<string, ProjectTag[]>();
+    for (const { project_id: projectId, ...tag } of rows) {
+      result.set(projectId, [...(result.get(projectId) ?? []), tag]);
+    }
+    const order = this.tagTreeOrder();
+    for (const [projectId, tags] of result) {
+      result.set(projectId, sortByTagTreeOrder(tags, order));
+    }
+    return result;
+  }
+
+  private tagTreeOrder(): Map<string, number> {
+    const rows = this.db.prepare("SELECT * FROM tags").all() as TagRow[];
+    return new Map(sortTagsForTree(rows).map((row, index) => [row.id, index]));
   }
 
   private replaceProjectTagLinks(projectId: string, tagIds: string[]): void {
@@ -1030,6 +1098,7 @@ export class RepoLensDatabase {
       CREATE INDEX IF NOT EXISTS idx_project_links_project_id ON project_links(project_id);
     `);
     this.ensureProjectFolderTimeColumns();
+    this.ensureProjectRankColumns();
     this.ensureTagSortOrderColumn();
     this.ensureTagLinkSourceColumn();
     this.migrateFlatTags();
@@ -1048,6 +1117,18 @@ export class RepoLensDatabase {
       this.db
         .prepare("UPDATE projects SET folder_updated_at = coalesce(last_modified_at, updated_at) WHERE folder_updated_at IS NULL")
         .run();
+    }
+  }
+
+  private ensureProjectRankColumns(): void {
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>).map((column) => column.name)
+    );
+    if (!columns.has("pinned")) {
+      this.db.prepare("ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0").run();
+    }
+    if (!columns.has("priority")) {
+      this.db.prepare("ALTER TABLE projects ADD COLUMN priority INTEGER NOT NULL DEFAULT 0").run();
     }
   }
 
@@ -1116,6 +1197,8 @@ function mapProjectListItem(row: ProjectRow, tags: ProjectTag[], links: ProjectL
     lastModifiedAt: row.last_modified_at,
     source: row.source,
     favorite: Boolean(row.favorite),
+    pinned: Boolean(row.pinned),
+    priority: clampPriority(Number(row.priority ?? 0)),
     createdAt: row.folder_created_at ?? row.created_at,
     updatedAt: row.folder_updated_at ?? row.updated_at
   };
@@ -1148,6 +1231,17 @@ function mapProjectLink(row: LinkRow): ProjectLink {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function normalizePriority(priority: number): ProjectPriority {
+  if (!Number.isInteger(priority) || priority < 0 || priority > 3) {
+    throw new RepoLensError("priority_invalid", "Priority must be an integer between 0 and 3.");
+  }
+  return priority as ProjectPriority;
+}
+
+function clampPriority(priority: number): ProjectPriority {
+  return Number.isInteger(priority) ? (Math.min(3, Math.max(0, priority)) as ProjectPriority) : 0;
 }
 
 function compareLinks(left: ProjectLink, right: ProjectLink): number {
@@ -1227,6 +1321,12 @@ function sortTagsForTree(rows: TagRow[]): TagRow[] {
   };
   append(null);
   return result;
+}
+
+function sortByTagTreeOrder(tags: ProjectTag[], order: Map<string, number>): ProjectTag[] {
+  return tags
+    .filter((tag) => order.has(tag.id))
+    .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
 }
 
 function compareTagRows(left: TagRow, right: TagRow): number {

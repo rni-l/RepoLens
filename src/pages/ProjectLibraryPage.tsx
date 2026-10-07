@@ -5,6 +5,7 @@ import { ProjectSearchBar, type FilterKey, type TagFilterMode } from "../compone
 import { ProjectTable } from "../components/ProjectTable";
 import { TagTreeSelector } from "../components/TagTreeSelector";
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
+import { parseProjectSort, sortProjects, type ProjectSort } from "../lib/projectSort";
 import { createTagPath, splitTagPath } from "../lib/tagCreate";
 import { pruneSelectedTagIds } from "../lib/tagState";
 import { api } from "../lib/tauri";
@@ -60,7 +61,17 @@ export function ProjectLibraryPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [isAddingRoot, setIsAddingRoot] = useState(false);
   const [activeRoute, setActiveRoute] = useState<RouteKey>(() => routeFromLocation());
+  const [projectSort, setProjectSort] = useState<ProjectSort>(readStoredProjectSort);
   const selectedProjectId = selectedProject?.id ?? null;
+  const sortedProjects = useMemo(() => sortProjects(projects, projectSort), [projects, projectSort]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PROJECT_SORT_STORAGE_KEY, JSON.stringify(projectSort));
+    } catch {
+      // Sort preference is a convenience; ignore unavailable storage.
+    }
+  }, [projectSort]);
 
   const filters = useMemo<ProjectFilters>(() => {
     const tagIds = tagFilterMode === "include" && selectedTagIds.length ? selectedTagIds : undefined;
@@ -77,26 +88,57 @@ export function ProjectLibraryPage() {
     return { query, statuses: [filter], tagIds, excludedTagIds };
   }, [filter, query, selectedTagIds, tagFilterMode]);
 
+  const hasActiveFilters = filtersAreActive(filters);
+  const hasActiveFiltersRef = useRef(hasActiveFilters);
+  hasActiveFiltersRef.current = hasActiveFilters;
+  const selectedProjectIdRef = useRef(selectedProjectId);
+  selectedProjectIdRef.current = selectedProjectId;
+  const allProjectsRef = useRef(allProjects);
+  allProjectsRef.current = allProjects;
+
+  const toastTimer = useRef<number | undefined>(undefined);
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(""), 2200);
+  }, []);
+
+  /** Unfiltered, the visible list is the whole library, so one request fills both lists. */
   const loadProjectList = useCallback(async () => {
     const projectList = await api.listProjects(filters);
     setProjects(projectList);
-    setSelectedProjectIds((current) => current.filter((id) => projectList.some((project) => project.id === id)));
-
-    if (selectedProjectId) {
-      try {
-        setSelectedProject(await api.getProject(selectedProjectId));
-      } catch {
-        setSelectedProject(null);
-      }
+    if (!filtersAreActive(filters)) {
+      setAllProjects(projectList);
     }
-  }, [filters, selectedProjectId]);
+    setSelectedProjectIds((current) => {
+      const visible = new Set(projectList.map((project) => project.id));
+      const next = current.filter((id) => visible.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [filters]);
 
-  const loadWorkspaceState = useCallback(async () => {
-    const [allProjectList, roots, actions, tagList, status] = await Promise.all([
-      api.listProjects({}),
-      api.listScanRoots(),
+  const loadAllProjects = useCallback(async () => {
+    setAllProjects(await api.listProjects({}));
+  }, []);
+
+  const refreshProjects = useCallback(async () => {
+    await Promise.all([loadProjectList(), hasActiveFiltersRef.current ? loadAllProjects() : undefined]);
+  }, [loadAllProjects, loadProjectList]);
+
+  const loadTags = useCallback(async () => {
+    const tagList = await api.listTags().catch(() => [] as TagNode[]);
+    setTags(tagList);
+    setSelectedTagIds((current) => pruneSelectedTagIds(current, tagList.map((tag) => tag.id)));
+  }, []);
+
+  const loadScanRoots = useCallback(async () => {
+    setScanRoots(await api.listScanRoots());
+  }, []);
+
+  /** Open-with apps and AI config only change outside the app: load them at launch and on 刷新. */
+  const loadEnvironment = useCallback(async () => {
+    const [actions, status] = await Promise.all([
       api.detectOpenActions(),
-      api.listTags().catch(() => []),
       api.getAiTaggingStatus().catch(() => ({
         available: false as const,
         provider: "none",
@@ -104,28 +146,66 @@ export function ProjectLibraryPage() {
         reason: "not_configured" as const
       }))
     ]);
-
-    setAllProjects(allProjectList);
-    setTags(tagList);
-    setSelectedTagIds((current) => pruneSelectedTagIds(current, tagList.map((tag) => tag.id)));
-    setScanRoots(roots);
     setOpenActions(actions);
     setAiStatus(status);
   }, []);
 
+  const refreshSelectedProject = useCallback(async () => {
+    const projectId = selectedProjectIdRef.current;
+    if (!projectId) return;
+    try {
+      const project = await api.getProject(projectId);
+      setSelectedProject((current) => (current?.id === projectId ? project : current));
+    } catch {
+      setSelectedProject(null);
+    }
+  }, []);
+
   const load = useCallback(async () => {
-    await Promise.all([loadProjectList(), loadWorkspaceState()]);
-  }, [loadProjectList, loadWorkspaceState]);
+    await Promise.all([refreshProjects(), loadTags(), loadScanRoots(), refreshSelectedProject()]);
+  }, [loadScanRoots, loadTags, refreshProjects, refreshSelectedProject]);
+
+  /** Applies saved projects in place instead of reloading the whole library. */
+  const patchProjects = useCallback((updated: ProjectListItem[]) => {
+    const byId = new Map(updated.map((project) => [project.id, project]));
+    const replace = (list: ProjectListItem[]) => list.map((item) => byId.get(item.id) ?? item);
+    setProjects(replace);
+    setAllProjects(replace);
+  }, []);
+
+  const patchProject = useCallback(
+    (project: ProjectDetail) => {
+      patchProjects([project]);
+      setSelectedProject((current) => (current?.id === project.id ? project : current));
+    },
+    [patchProjects]
+  );
+
+  /** Filter membership may change after an edit (e.g. 未打标), so re-run the filtered query quietly. */
+  const reconcileFilteredList = useCallback(() => {
+    if (hasActiveFiltersRef.current) {
+      void loadProjectList().catch(() => undefined);
+    }
+  }, [loadProjectList]);
 
   useEffect(() => {
-    void loadWorkspaceState().catch((error) => showToast(errorMessage(error)));
-  }, [loadWorkspaceState]);
+    void Promise.all([loadTags(), loadScanRoots(), loadEnvironment()]).catch((error) => showToast(errorMessage(error)));
+  }, [loadEnvironment, loadScanRoots, loadTags, showToast]);
 
   useEffect(() => {
     void loadProjectList().catch((error) => showToast(errorMessage(error)));
-  }, [loadProjectList]);
+  }, [loadProjectList, showToast]);
+
+  useEffect(() => {
+    if (hasActiveFilters && !allProjects.length) {
+      void loadAllProjects().catch(() => undefined);
+    }
+  }, [allProjects.length, hasActiveFilters, loadAllProjects]);
 
   // Background rescan on launch picks up projects created while the app was closed.
+  // The scan outlives the first render; reload with the filters current when it finishes.
+  const loadRef = useRef(load);
+  loadRef.current = load;
   const launchScanStarted = useRef(false);
   useEffect(() => {
     if (launchScanStarted.current) return;
@@ -134,7 +214,7 @@ export function ProjectLibraryPage() {
       .scanAllRoots()
       .then(async (summary) => {
         setScanSummary(summary);
-        await Promise.all([loadProjectList(), loadWorkspaceState()]);
+        await loadRef.current();
         if (summary.addedProjects) {
           showToast(`启动扫描发现 ${summary.addedProjects} 个新项目`);
         }
@@ -159,11 +239,6 @@ export function ProjectLibraryPage() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
-  const showToast = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 2200);
-  };
-
   const enabledRoots = scanRoots.filter((root) => root.enabled).length;
   const availableOpenActions = openActions.filter((action) => action.available).length;
   const issueCount = allProjects.filter((project) => project.status === "missing").length + (scanSummary?.errors.length ?? 0);
@@ -175,16 +250,23 @@ export function ProjectLibraryPage() {
     setActiveRoute(route);
   }
 
-  async function selectProject(projectId: string) {
-    setSelectedProject(await api.getProject(projectId));
-  }
+  // Row callbacks stay stable so memoized table rows skip re-rendering on unrelated state changes.
+  const selectProject = useCallback(
+    (projectId: string) => {
+      api
+        .getProject(projectId)
+        .then(setSelectedProject)
+        .catch((error) => showToast(errorMessage(error)));
+    },
+    [showToast]
+  );
 
-  function toggleProjectSelection(projectId: string, checked: boolean) {
+  const toggleProjectSelection = useCallback((projectId: string, checked: boolean) => {
     setSelectedProjectIds((current) =>
       checked ? Array.from(new Set([...current, projectId])) : current.filter((id) => id !== projectId)
     );
     setSelectedProject(null);
-  }
+  }, []);
 
   function toggleAllVisibleProjects() {
     const visibleIds = projects.map((project) => project.id);
@@ -220,8 +302,10 @@ export function ProjectLibraryPage() {
       setSelectedProjectIds([]);
       setBulkTagIds([]);
       setIsBulkTagDrawerOpen(false);
-      await load();
+      patchProjects(result.updatedProjects);
       showToast(`已为 ${result.updatedCount} 个项目追加标签`);
+      void loadTags();
+      reconcileFilteredList();
     } catch (error) {
       showToast(errorMessage(error));
     } finally {
@@ -258,15 +342,18 @@ export function ProjectLibraryPage() {
     }
   }
 
-  async function openProject(projectId: string, action: OpenAction) {
-    try {
-      await api.openProject(projectId, action);
-      const project = allProjects.find((item) => item.id === projectId);
-      showToast(`正在打开 ${project?.name ?? "项目"}`);
-    } catch (error) {
-      showToast(errorMessage(error));
-    }
-  }
+  const openProject = useCallback(
+    (projectId: string, action: OpenAction) => {
+      api
+        .openProject(projectId, action)
+        .then(() => {
+          const project = allProjectsRef.current.find((item) => item.id === projectId);
+          showToast(`正在打开 ${project?.name ?? "项目"}`);
+        })
+        .catch((error) => showToast(errorMessage(error)));
+    },
+    [showToast]
+  );
 
 
   async function createTag(input: TagCreateInput) {
@@ -323,10 +410,27 @@ export function ProjectLibraryPage() {
     }
   }
 
-  async function applyProjectChange(project: ProjectDetail, message: string) {
+  const togglePin = useCallback(
+    (projectId: string) => {
+      const project = allProjectsRef.current.find((item) => item.id === projectId);
+      if (!project) return;
+      api
+        .updateProject(projectId, { pinned: !project.pinned })
+        .then((next) => {
+          patchProject(next);
+          showToast(next.pinned ? `已置顶 ${next.name}` : `已取消置顶 ${next.name}`);
+        })
+        .catch((error) => showToast(errorMessage(error)));
+    },
+    [patchProject, showToast]
+  );
+
+  function applyProjectChange(project: ProjectDetail, message: string) {
+    patchProject(project);
     setSelectedProject(project);
     showToast(message);
-    await load();
+    void loadTags();
+    reconcileFilteredList();
   }
 
   async function createTagFromPath(path: string): Promise<TagNode | null> {
@@ -341,24 +445,21 @@ export function ProjectLibraryPage() {
     }
   }
 
-  async function openUrl(url: string) {
-    try {
-      await api.openUrl(url);
-    } catch (error) {
-      showToast(errorMessage(error));
-    }
-  }
+  const openUrl = useCallback(
+    (url: string) => {
+      api.openUrl(url).catch((error) => showToast(errorMessage(error)));
+    },
+    [showToast]
+  );
 
-  async function applySuggestedProject(project: ProjectDetail) {
-    setSelectedProject(project);
-    await load();
-    showToast("标签建议已应用");
+  function applySuggestedProject(project: ProjectDetail) {
+    applyProjectChange(project, "标签建议已应用");
   }
 
   async function toggleRoot(id: string, enabled: boolean) {
     try {
       await api.updateScanRoot(id, { enabled });
-      await load();
+      await loadScanRoots();
       showToast(enabled ? "扫描源已启用" : "扫描源已停用");
     } catch (error) {
       showToast(errorMessage(error));
@@ -368,7 +469,7 @@ export function ProjectLibraryPage() {
   async function removeRoot(id: string) {
     try {
       await api.removeScanRoot(id);
-      await load();
+      await loadScanRoots();
       showToast("扫描源已移除");
     } catch (error) {
       showToast(errorMessage(error));
@@ -388,7 +489,7 @@ export function ProjectLibraryPage() {
     setIsAddingRoot(true);
     try {
       await api.addScanRoot(path);
-      await load();
+      await loadScanRoots();
       showToast("扫描源已添加并启用");
     } catch (error) {
       showToast(errorMessage(error));
@@ -401,7 +502,8 @@ export function ProjectLibraryPage() {
     <AppShell activeRoute={activeRoute} onNavigate={navigate}>
       {activeRoute === "library" ? (
         <LibraryView
-          projects={projects}
+          projects={sortedProjects}
+          projectSort={projectSort}
           tags={tags}
           selectedProject={selectedProject}
           selectedProjectIds={selectedProjectIds}
@@ -418,6 +520,8 @@ export function ProjectLibraryPage() {
           isBusy={isBusy}
           onNavigate={navigate}
           onRunScan={() => void runScan()}
+          onSortChange={setProjectSort}
+          onTogglePin={togglePin}
           onQueryChange={setQuery}
           onFilterChange={setFilter}
           onTagFilterChange={setSelectedTagIds}
@@ -431,16 +535,16 @@ export function ProjectLibraryPage() {
             setBulkTagIds([]);
             setIsBulkTagDrawerOpen(false);
           }}
-          onSelectProject={(projectId) => void selectProject(projectId)}
+          onSelectProject={selectProject}
           onToggleProject={toggleProjectSelection}
           onToggleAll={toggleAllVisibleProjects}
-          onOpenProject={(projectId, action) => void openProject(projectId, action)}
+          onOpenProject={openProject}
           onCloseDrawer={() => setSelectedProject(null)}
           onCopyPath={(path) => void copyPath(path)}
           aiStatus={aiStatus}
-          onSuggestionApplied={(project) => void applySuggestedProject(project)}
-          onProjectChanged={(project, message) => void applyProjectChange(project, message)}
-          onOpenUrl={(url) => void openUrl(url)}
+          onSuggestionApplied={applySuggestedProject}
+          onProjectChanged={applyProjectChange}
+          onOpenUrl={openUrl}
           onCreateTag={createTagFromPath}
           onError={showToast}
         />
@@ -483,7 +587,7 @@ export function ProjectLibraryPage() {
           aiStatus={aiStatus}
           scanSummary={scanSummary}
           onNavigate={navigate}
-          onRefresh={() => void load().then(() => showToast("状态已刷新"))}
+          onRefresh={() => void Promise.all([load(), loadEnvironment()]).then(() => showToast("状态已刷新"))}
         />
       ) : null}
 
@@ -543,6 +647,7 @@ function AppShell({ activeRoute, onNavigate, children }: AppShellProps) {
 
 type LibraryViewProps = {
   projects: ProjectListItem[];
+  projectSort: ProjectSort;
   tags: TagNode[];
   selectedProject: ProjectDetail | null;
   selectedProjectIds: string[];
@@ -560,6 +665,8 @@ type LibraryViewProps = {
   aiStatus: AiTaggingStatus | null;
   onNavigate(route: RouteKey): void;
   onRunScan(): void;
+  onSortChange(sort: ProjectSort): void;
+  onTogglePin(projectId: string): void;
   onQueryChange(query: string): void;
   onFilterChange(filter: FilterKey): void;
   onTagFilterChange(tagIds: string[]): void;
@@ -584,6 +691,7 @@ type LibraryViewProps = {
 
 function LibraryView({
   projects,
+  projectSort,
   tags,
   selectedProject,
   selectedProjectIds,
@@ -601,6 +709,8 @@ function LibraryView({
   aiStatus,
   onNavigate,
   onRunScan,
+  onSortChange,
+  onTogglePin,
   onQueryChange,
   onFilterChange,
   onTagFilterChange,
@@ -676,9 +786,12 @@ function LibraryView({
             activeProjectId={selectedProject?.id ?? null}
             selectedProjectIds={selectedProjectIds}
             openActions={openActions}
+            sort={projectSort}
+            onSortChange={onSortChange}
             onSelect={onSelectProject}
             onToggleProject={onToggleProject}
             onToggleAll={onToggleAll}
+            onTogglePin={onTogglePin}
             onOpen={onOpenProject}
             onOpenUrl={onOpenUrl}
           />
@@ -1531,6 +1644,16 @@ function SettingsPage({ roots, projects, openActions, aiStatus, scanSummary, onN
   );
 }
 
+const PROJECT_SORT_STORAGE_KEY = "repolens.projectSort";
+
+function readStoredProjectSort(): ProjectSort {
+  try {
+    return parseProjectSort(JSON.parse(window.localStorage.getItem(PROJECT_SORT_STORAGE_KEY) ?? "null"));
+  } catch {
+    return parseProjectSort(null);
+  }
+}
+
 function routeFromLocation(): RouteKey {
   const hash = window.location.hash.replace("#", "");
   if (hash === "tags") return "tags";
@@ -1577,6 +1700,20 @@ function formatShortDateTime(value: string | null): string {
   if (Number.isNaN(date.getTime())) return "-";
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function filtersAreActive(filters: ProjectFilters): boolean {
+  return Boolean(
+    filters.query?.trim() ||
+      filters.statuses?.length ||
+      filters.tagIds?.length ||
+      filters.excludedTagIds?.length ||
+      filters.favoriteOnly ||
+      filters.untagged ||
+      filters.techStacks?.length ||
+      filters.scanRootId ||
+      filters.source
+  );
 }
 
 function errorMessage(error: unknown): string {

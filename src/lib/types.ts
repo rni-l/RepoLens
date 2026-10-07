@@ -20,6 +20,7 @@ export type {
   ProjectLinkInput,
   ProjectLinkPatch,
   ProjectListItem,
+  ProjectPriority,
   ProjectTag,
   ProjectSource,
   ProjectStatus,

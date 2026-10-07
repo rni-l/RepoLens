@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import { Pin } from "lucide-react";
 import { createTagPath } from "../lib/tagCreate";
-import type { AiTaggingStatus, ProjectDetail, TagNode } from "../lib/types";
+import type { AiTaggingStatus, ProjectDetail, ProjectPriority, ProjectUpdatePatch, TagNode } from "../lib/types";
 import { api } from "../lib/tauri";
 import { AiTagSuggestionPanel } from "./AiTagSuggestionPanel";
 import { ProjectLinksEditor } from "./ProjectLinksEditor";
+import { PRIORITY_LABELS } from "./ProjectTable";
 import { ProjectTagPicker } from "./ProjectTagPicker";
 
 const TAG_SOURCE_TITLES = { rule: "规则自动打标", agent: "AI 打标" } as const;
+const PRIORITY_OPTIONS: ProjectPriority[] = [3, 2, 1, 0];
 
 type Props = {
   project: ProjectDetail | null;
@@ -75,6 +78,15 @@ export function ProjectDetailPanel({
     }
   }
 
+  async function saveRank(patch: Pick<ProjectUpdatePatch, "pinned" | "priority">, message: string) {
+    if (!project) return;
+    try {
+      onProjectChanged(await api.updateProject(project.id, patch), message);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   /** Saves immediately; saves run one at a time and only the latest result is applied. */
   function changeTags(tagIds: string[], message = "标签已保存") {
     const projectId = projectRef.current?.id;
@@ -128,6 +140,35 @@ export function ProjectDetailPanel({
             <div className="detail-title">
               <strong>{project.name}</strong>
               <span className="path">{project.path}</span>
+            </div>
+            <div className="rank-row">
+              <button
+                className={`btn pin-toggle ${project.pinned ? "is-pinned" : ""}`}
+                type="button"
+                aria-pressed={project.pinned}
+                onClick={() => void saveRank({ pinned: !project.pinned }, project.pinned ? "已取消置顶" : "已置顶")}
+              >
+                <Pin size={14} aria-hidden="true" /> {project.pinned ? "已置顶" : "置顶"}
+              </button>
+              <div className="priority-picker" role="radiogroup" aria-label="优先级">
+                <span>优先级</span>
+                {PRIORITY_OPTIONS.map((priority) => (
+                  <button
+                    className={`priority-option priority-${priority} ${project.priority === priority ? "is-active" : ""}`}
+                    type="button"
+                    role="radio"
+                    aria-checked={project.priority === priority}
+                    key={priority}
+                    onClick={() => {
+                      if (project.priority !== priority) {
+                        void saveRank({ priority }, priority ? `优先级已设为${PRIORITY_LABELS[priority]}` : "已清除优先级");
+                      }
+                    }}
+                  >
+                    {PRIORITY_LABELS[priority]}
+                  </button>
+                ))}
+              </div>
             </div>
             <label className="field">
               <span>描述</span>

@@ -10,6 +10,9 @@ export type ProjectSource = "scan" | "manual";
 
 export type FieldSource = "auto" | "user";
 
+/** 0 = 未设置, 1 = 低, 2 = 中, 3 = 高. */
+export type ProjectPriority = 0 | 1 | 2 | 3;
+
 export type OpenAction =
   | "folder"
   | "terminal"
@@ -144,6 +147,8 @@ export type ProjectListItem = {
   lastModifiedAt: string | null;
   source: ProjectSource;
   favorite: boolean;
+  pinned: boolean;
+  priority: ProjectPriority;
   createdAt: string;
   updatedAt: string;
 };
@@ -186,6 +191,8 @@ export type ProjectUpdatePatch = {
   description?: string;
   status?: ProjectStatus;
   favorite?: boolean;
+  pinned?: boolean;
+  priority?: ProjectPriority;
   tagIds?: string[];
   startCommand?: string | null;
   testCommand?: string | null;
